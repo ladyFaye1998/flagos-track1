@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flagos-track1"
+version = "0.1.0"
+description = "FlagOS Open Computing Global Challenge - Track 1: Operator Development and Optimization"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "FlagOS Track1 Submission" }]
+license = { text = "Apache-2.0" }
+dependencies = [
+    "torch>=2.3",
+    "numpy>=1.26",
+    "click>=8.1",
+    "rich>=13.7",
+    "tabulate>=0.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-benchmark>=4.0"]
+
+[project.scripts]
+flagos = "flagos_track1.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
+filterwarnings = ["ignore::DeprecationWarning"]

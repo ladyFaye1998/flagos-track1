@@ -1,0 +1,17 @@
+{
+  "id": "ladyfaye/flagos-track1-log10",
+  "title": "flagos track1 log10",
+  "code_file": "notebook.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [
+    "track1-operator-development-and-optimization-flagos-challenge"
+  ],
+  "kernel_sources": [],
+  "model_sources": []
+}

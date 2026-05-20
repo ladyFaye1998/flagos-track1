@@ -1,0 +1,9 @@
+torch>=2.3
+triton>=2.3 ; platform_system != "Windows"
+triton-windows>=2.3 ; platform_system == "Windows"
+numpy>=1.26
+pytest>=8.0
+pytest-benchmark>=4.0
+rich>=13.7
+click>=8.1
+tabulate>=0.9
