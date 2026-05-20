@@ -1,4 +1,13 @@
+<p align="center">
+  <img src="docs/banner.png" alt="FlagOS Track 1 — 20 Triton GPU Operators" width="100%" />
+</p>
+
 # FlagOS Track 1 — LLM Operator Development & Optimization
+
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-128%2F128%20pass-brightgreen.svg)](#run-tests)
+[![Operators](https://img.shields.io/badge/operators-20-58A6FF.svg)](#repository-layout)
+[![Stack](https://img.shields.io/badge/stack-PyTorch%20%2B%20Triton-orange.svg)](#install)
 
 A submission scaffold for the **FlagOS Open Computing Global Challenge (Season 1, Track 1)**.
 Implements **20 Triton operators** (8 Easy + 8 Medium + 4 Hard), each with:

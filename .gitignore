@@ -21,4 +21,8 @@ node_modules/
 
 # Demo build artifacts (keep demo/demo.mp4 itself committed)
 demo/frames/
-demo/concat.txt
+demo/audio/
+demo/concat*.txt
+demo/_*.mp4
+demo/_*.wav
+demo/_*.png
