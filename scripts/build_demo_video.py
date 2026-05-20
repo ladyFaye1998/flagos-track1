@@ -110,7 +110,11 @@ NARRATION: List[str] = [
     "Every medium and hard kernel is faster than PyTorch. "
     "Flash attention is roughly ten times faster. RMS norm over seven times. "
     "Even matmul wins, because the wrapper dispatches between Triton and cuBLAS per shape.",
-    # 8 - closing
+    # 8 - upstream
+    "On top of this submission I have five open pull requests to the FlagGems repository, "
+    "numbers thirty-four hundred through thirty-four oh four. "
+    "Each one rewrites an existing pointwise operator with a hand-rolled autotuned Triton kernel.",
+    # 9 - closing
     "Thank you for reviewing my submission. "
     "The full code is on GitHub at flagos dash track one.",
 ]
@@ -360,6 +364,49 @@ def slide_bench():
     return save(fig, 7)
 
 
+def slide_upstream():
+    fig, ax = new_fig()
+    ax.text(50, 92, "5 upstream contributions to FlagGems",
+            ha="center", va="center", fontsize=28, color=FG, weight="bold")
+    ax.text(50, 85, "FlagGems Operator Development Competition",
+            ha="center", va="center", fontsize=15, color=MUTED, style="italic")
+    rows = [
+        ("PR #3400",
+         "perf(log10)",
+         "fp64 path + autotune over BLOCK_SIZE / num_warps / num_stages"),
+        ("PR #3401",
+         "perf(abs)",
+         "contiguous fast path, empty-tensor short-circuit, autotune sweep"),
+        ("PR #3402",
+         "perf(exp)",
+         "fp32 accumulator for fp16/bf16, int->fp32 promotion, autotune"),
+        ("PR #3403",
+         "perf(log)",
+         "fp32 accumulator path, autotune sweep keyed on n_elements"),
+        ("PR #3404",
+         "perf(tanh + tanh_backward)",
+         "dedicated autotuned backward kernel, dx = dy * (1 - y*y) in fp32"),
+    ]
+    for i, (num, op, why) in enumerate(rows):
+        y = 73 - i * 9
+        rect = patches.FancyBboxPatch(
+            (5, y - 3.2), 90, 6.4, boxstyle="round,pad=0.4",
+            linewidth=1.4, edgecolor=ACCENT2, facecolor=PANEL,
+        )
+        ax.add_patch(rect)
+        ax.text(8, y, num, ha="left", va="center", fontsize=16,
+                color=ACCENT2, weight="bold", family="monospace")
+        ax.text(20, y, op, ha="left", va="center", fontsize=16,
+                color=ACCENT, weight="bold", family="monospace")
+        ax.text(43, y, why, ha="left", va="center", fontsize=12.5,
+                color=FG)
+    ax.text(50, 19, "github.com/FlagOpen/FlagGems/pull/3400 ... /pull/3404",
+            ha="center", va="center", fontsize=14, color=ACCENT,
+            family="monospace")
+    footer(ax)
+    return save(fig, 8)
+
+
 def slide_closing():
     fig, ax = new_fig()
     ax.text(50, 80, "Thank you", ha="center", va="center",
@@ -379,7 +426,7 @@ def slide_closing():
     ax.text(50, 36, "Danielle Lesin  -  Apache-2.0",
             ha="center", va="center", fontsize=14, color=MUTED)
     footer(ax, "FlagOS Open Computing Global Challenge  -  Track 1, Season 1")
-    return save(fig, 8)
+    return save(fig, 9)
 
 
 # -----------------------------------------------------------------------------
@@ -499,7 +546,8 @@ def main() -> None:
     # 1. Render slides
     builders = [
         slide_title, slide_tiers, slide_kernel, slide_tests,
-        slide_cli, slide_dimensions, slide_bench, slide_closing,
+        slide_cli, slide_dimensions, slide_bench,
+        slide_upstream, slide_closing,
     ]
     frames: List[Path] = []
     for b in builders:
