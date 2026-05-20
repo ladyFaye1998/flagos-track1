@@ -19,13 +19,14 @@ src/flagos_track1/
   ops/backward/    softmax / layer_norm / cross_entropy / activation grads
   reference/       PyTorch reference for every op
   testing/         dtype-aware assert_close + reproducible input generators
-  bench/           CUDA-event / triton.do_bench wrapper
+  bench/           triton.testing.do_bench wrapper (CUDA-event fallback)
+  device_caps.py   vendor + arch detection, per-vendor config selection
   cli.py           `flagos` command (info / list / test / bench / package)
-tests/             pytest suites, mirrored per tier
+tests/             pytest suites, mirrored per tier + backward + CPU parity
 benchmarks/        run_all.py (headline) + sweep.py (multi-shape) + save_results.py
-docs/              submission guide, technical notes, banner
+docs/              SUBMISSION_GUIDE.md, TECHNICAL_NOTES.md, BACKENDS.md, banner
 demo/              narrated MP4 walkthrough
-.github/workflows/ CI: pytest + CLI smoke on Py 3.10/3.11/3.12
+.github/workflows/ CI: pytest + CLI smoke on Py 3.10/3.11/3.12 (CPU runners)
 ```
 
 ## Install
@@ -43,7 +44,7 @@ On Windows, install `triton-windows` in place of `triton`.
 ## CLI
 
 ```bash
-flagos info                            # torch / triton / cuda versions
+flagos info                            # torch / triton / cuda + detected vendor / arch
 flagos list                            # the 20 operators grouped by tier
 flagos test --tier easy                # run pytest for one tier
 flagos test --op softmax               # run pytest for a single op
@@ -51,8 +52,11 @@ flagos bench --tier hard               # measured ms vs PyTorch reference
 flagos package --out submission.zip    # archive the submission bundle
 ```
 
-The same commands are available without installing the package via
-`python scripts/flagos_cli.py …`.
+`flagos info` reads `device_caps.detect()` and reports the detected
+vendor (`nvidia / amd / intel / cpu`) and arch (`ampere / hopper / ada
+/ cdna2 / cdna3 / xe-hpc / ...`), which is the same value the kernels
+use to pick their tile schedule. The same commands are also runnable
+without installing the package via `python scripts/flagos_cli.py ...`.
 
 ## Correctness
 
@@ -111,20 +115,20 @@ and [`docs/BACKENDS.md`](docs/BACKENDS.md).
 | Easy | log | fp32 internal compute |
 | Easy | sigmoid | fp32 internal compute |
 | Easy | relu | `tl.maximum` |
-| Easy | tanh | derived from `exp` |
-| Easy | gelu | exact + tanh-approx kernels |
-| Easy | silu | `x * sigmoid(x)` |
+| Easy | tanh | inline `exp(2x)`, no second kernel launch |
+| Easy | gelu | exact (erf) + tanh-approx kernels |
+| Easy | silu | `x * sigmoid(x)`, single pass |
 | Medium | softmax | online softmax along the last axis |
-| Medium | layer_norm | single-pass mean + variance, no diff materialisation |
+| Medium | layer_norm | single-pass fused mean + variance + affine |
 | Medium | rms_norm | Llama-style RMSNorm with fp32 accumulator |
 | Medium | cross_entropy | fused log-softmax + NLL with `ignore_index` |
 | Medium | embedding | gather with optional `padding_idx` |
-| Medium | dropout | Philox-based mask, scale-aware |
+| Medium | dropout | Philox-based mask, scale-aware, reproducible seed |
 | Medium | argmax | last-dim tile reduction |
-| Medium | matmul | blocked GEMM, autotuned BLOCK_M/N/K |
-| Hard | flash_attention | FA-v2 forward, causal mask, head_dim in {16, 32, 64, 128} |
+| Medium | matmul | per-vendor autotune; wrapper dispatches Triton ↔ vendor BLAS per shape |
+| Hard | flash_attention | FA-v2 forward, causal mask, per-arch tile schedule, head_dim ∈ {16, 32, 64, 128} |
 | Hard | rope | interleaved RoPE, fp32 cos/sin |
-| Hard | fused_moe_topk | router softmax + top-k + renormalisation |
+| Hard | fused_moe_topk | router softmax (fp32) + top-k + renormalisation |
 | Hard | rms_norm_backward | analytic `grad_x`, atomic `grad_w` |
 
 ## Scoring dimensions
