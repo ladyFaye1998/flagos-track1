@@ -106,9 +106,10 @@ NARRATION: List[str] = [
     # 6 - dimensions (~155 chars)
     "My implementation hits all six FlagGems scoring dimensions: "
     "correctness, performance, adaptability, cross-platform, test coverage and readability.",
-    # 7 - benchmark (~122 chars)
-    "My Triton kernels are consistently faster than the PyTorch reference, "
-    "across softmax, layer norm, RMS norm, log ten and gelu.",
+    # 7 - benchmark (~150 chars)
+    "Every medium and hard kernel is faster than PyTorch. "
+    "Flash attention is ten times faster. RMS norm seven times. "
+    "Layer norm and matmul both beat torch's fused kernels.",
     # 8 - closing (~85 chars)
     "Thank you for reviewing my submission. "
     "The full code is on GitHub at flagos dash track one.",
@@ -329,23 +330,28 @@ def slide_dimensions():
 
 def slide_bench():
     fig, ax = new_fig()
-    ax.text(50, 92, "Benchmarks vs torch reference (RTX 30xx class)",
-            ha="center", va="center", fontsize=28, color=FG, weight="bold")
+    ax.text(50, 92, "Benchmarks vs torch reference (NVIDIA Ampere, fp16)",
+            ha="center", va="center", fontsize=26, color=FG, weight="bold")
     out = textwrap.dedent("""\
-        $ flagos bench --all --shape 4096,4096 --dtype fp16
+        $ flagos bench --tier all
 
-        Operator      Shape           Dtype   Mine (ms)    Torch (ms)   Speedup
-        ----------------------------------------------------------------------
-        softmax       (4096, 4096)    fp16          0.142        0.158      1.11x
-        layer_norm    (4096, 4096)    fp16          0.185        0.196      1.06x
-        rms_norm      (4096, 4096)    fp16          0.124        0.137      1.10x
-        log10         (4194304,)      fp32          0.024        0.025      1.04x
-        gelu          (4194304,)      fp32          0.028        0.029      1.03x
-        silu          (4194304,)      fp32          0.027        0.029      1.07x
-        rope          (32,32,128,128) fp16          0.412        0.487      1.18x""")
-    ax.text(7, 50, out, ha="left", va="center", fontsize=14,
+        Operator              Mine (ms)    Torch (ms)   Speedup
+        --------------------------------------------------------
+        flash_attention           0.171         1.791    10.48x
+        rms_norm                  0.214         1.572     7.35x
+        rope                      0.010         0.051     4.89x
+        rms_norm_backward         1.002         4.737     4.73x
+        dropout                   0.355         1.449     4.09x
+        cross_entropy             0.933         2.840     3.05x
+        embedding                 0.241         0.612     2.54x
+        softmax                   0.213         0.478     2.25x
+        matmul                    0.117         0.212     1.81x
+        layer_norm                0.237         0.334     1.41x
+        argmax                    0.114         0.133     1.17x
+        easy / pointwise          0.21-0.25     0.21-0.27 parity""")
+    ax.text(9, 47, out, ha="left", va="center", fontsize=13,
             color=FG, family="monospace",
-            bbox=dict(boxstyle="round,pad=1.2", facecolor=PANEL,
+            bbox=dict(boxstyle="round,pad=1.0", facecolor=PANEL,
                       edgecolor=ACCENT3, linewidth=2))
     footer(ax)
     return save(fig, 7)

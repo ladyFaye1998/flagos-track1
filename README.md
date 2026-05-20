@@ -1,108 +1,140 @@
 <p align="center">
-  <img src="docs/banner.png" alt="FlagOS Track 1 — 20 Triton GPU Operators" width="100%" />
+  <img src="docs/banner.png" alt="FlagOS Track 1 - 20 Triton GPU Operators" width="100%" />
 </p>
 
-# FlagOS Track 1 — LLM Operator Development & Optimization
+# FlagOS Track 1 - Operator Development & Optimization
 
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-128%2F128%20pass-brightgreen.svg)](#run-tests)
-[![Operators](https://img.shields.io/badge/operators-20-58A6FF.svg)](#repository-layout)
-[![Stack](https://img.shields.io/badge/stack-PyTorch%20%2B%20Triton-orange.svg)](#install)
-
-A submission scaffold for the **FlagOS Open Computing Global Challenge (Season 1, Track 1)**.
-Implements **20 Triton operators** (8 Easy + 8 Medium + 4 Hard), each with:
-
-- a pure-PyTorch reference (golden)
-- a Triton kernel (autotuned where useful)
-- a CPU/CUDA fallback so tests + the CLI run anywhere
-- correctness + benchmark coverage via `pytest` and a `flagos` CLI
-
----
+Submission for the **FlagOS Open Computing Global Challenge (Season 1, Track 1)**.
+Twenty operators implemented as autotuned Triton kernels with a PyTorch
+reference path, dtype-aware correctness tests, and a benchmark suite.
 
 ## Repository layout
 
 ```
 src/flagos_track1/
-  ops/
-    easy/      # 8 element-wise kernels (abs, exp, log, sigmoid, relu, tanh, gelu, silu)
-    medium/    # 8 classic-DL kernels (softmax, layer_norm, rms_norm, cross_entropy,
-               #                       embedding, dropout, argmax, matmul)
-    hard/      # 4 cutting-edge kernels (flash_attention, rope, fused_moe_topk,
-               #                         rms_norm_backward)
-  reference/   # PyTorch golden references
-  testing/     # dtype-aware assert_close + reproducible input generators
-  bench/       # CUDA-event / do_bench wrapper
-  cli.py       # `flagos` command (list / test / bench / package / info)
-tests/         # pytest suites mirroring src/ tiers
-benchmarks/    # standalone runner: `python benchmarks/run_all.py`
-scripts/       # `python scripts/flagos_cli.py` without installing
-docs/          # submission guide
+  ops/easy/        abs exp log sigmoid relu tanh gelu silu
+  ops/medium/      softmax layer_norm rms_norm cross_entropy
+                   embedding dropout argmax matmul
+  ops/hard/        flash_attention rope fused_moe_topk rms_norm_backward
+  ops/backward/    softmax / layer_norm / cross_entropy / activation grads
+  reference/       PyTorch reference for every op
+  testing/         dtype-aware assert_close + reproducible input generators
+  bench/           CUDA-event / triton.do_bench wrapper
+  cli.py           `flagos` command (info / list / test / bench / package)
+tests/             pytest suites, mirrored per tier
+benchmarks/        run_all.py (headline) + sweep.py (multi-shape) + save_results.py
+docs/              submission guide, technical notes, banner
+demo/              narrated MP4 walkthrough
+.github/workflows/ CI: pytest + CLI smoke on Py 3.10/3.11/3.12
 ```
 
 ## Install
 
 ```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1    # on Windows
+.\.venv\Scripts\Activate.ps1     # PowerShell on Windows
+source .venv/bin/activate        # Linux / macOS
 pip install -e .
 pip install -r requirements.txt
 ```
 
-On Windows, use `pip install triton-windows` instead of `triton`.
+On Windows, install `triton-windows` in place of `triton`.
 
 ## CLI
 
 ```bash
-flagos info                  # show torch / triton / cuda versions
-flagos list                  # list all 20 ops grouped by tier
-flagos test --tier easy      # run pytest for one tier
-flagos test --op softmax     # run pytest for a single op
-flagos bench --tier hard     # micro-benchmark vs PyTorch reference
-flagos package --out submission.zip   # build a submission archive
+flagos info                            # torch / triton / cuda versions
+flagos list                            # the 20 operators grouped by tier
+flagos test --tier easy                # run pytest for one tier
+flagos test --op softmax               # run pytest for a single op
+flagos bench --tier hard               # measured ms vs PyTorch reference
+flagos package --out submission.zip    # archive the submission bundle
 ```
 
-Or without installing the package:
+The same commands are available without installing the package via
+`python scripts/flagos_cli.py …`.
+
+## Correctness
+
+`pytest` ships with **157 parametrised cases** across 25 forward + backward
+kernels, covering fp16 / bf16 / fp32, shape sweeps from `(7,)` to
+`(4096, 4096)`, edge values (NaN, ±Inf, zero boundary), and validates
+backward passes against `torch.autograd`.
 
 ```bash
-python scripts\flagos_cli.py list
+python -m pytest tests/ -q
+# 157 passed
 ```
+
+Tolerances are per dtype (`src/flagos_track1/utils.py::TOLERANCE`) and
+match the FlagGems CI defaults.
+
+## Benchmarks
+
+Headline numbers below; the full **multi-shape sweep** (small / medium /
+large per op, with geomean speedups) lives in
+[`BENCHMARKS.md`](BENCHMARKS.md). Measured on RTX 3060 Laptop GPU, CUDA
+12.4, fp16 unless noted, median of 20 reps via `triton.testing.do_bench`.
+
+| Tier | Op | Mine (ms) | Torch (ms) | Speedup |
+|---|---|---:|---:|---:|
+| Hard | flash_attention | 0.123 | 2.321 | **18.9x** |
+| Medium | rms_norm | 0.222 | 1.989 | **9.0x** |
+| Hard | rope | 0.014 | 0.087 | **6.0x** |
+| Hard | rms_norm_backward | 0.821 | 4.875 | **5.9x** |
+| Medium | dropout | 0.465 | 1.596 | **3.4x** |
+| Medium | cross_entropy | 0.919 | 2.856 | **3.1x** |
+| Medium | softmax | 0.214 | 0.488 | **2.3x** |
+| Medium | embedding | 0.248 | 0.515 | **2.1x** |
+| Medium | layer_norm | 0.220 | 0.355 | **1.6x** |
+| Medium | argmax | 0.147 | 0.229 | **1.6x** |
+
+Easy-tier element-wise ops are memory-bandwidth-bound and run within ±15%
+of PyTorch's native CUDA kernels (geomean 0.97-1.19x). Every Medium and
+Hard kernel beats the PyTorch reference; the design rationale is in
+[`docs/TECHNICAL_NOTES.md`](docs/TECHNICAL_NOTES.md).
 
 ## The 20 operators
 
 | Tier | Op | Notes |
 |---|---|---|
-| Easy | abs | autotuned 1-D pointwise |
-| Easy | exp | fp32 internal |
-| Easy | log | fp32 internal |
-| Easy | sigmoid | fp32 internal |
+| Easy | abs | element-wise pointwise |
+| Easy | exp | fp32 internal compute |
+| Easy | log | fp32 internal compute |
+| Easy | sigmoid | fp32 internal compute |
 | Easy | relu | `tl.maximum` |
 | Easy | tanh | derived from `exp` |
 | Easy | gelu | exact + tanh-approx kernels |
-| Easy | silu | x * sigmoid(x) |
-| Medium | softmax | online softmax, last-dim |
-| Medium | layer_norm | forward, optional weight + bias |
-| Medium | rms_norm | Llama-style RMSNorm |
-| Medium | cross_entropy | fused log-softmax + NLL, ignore_index |
-| Medium | embedding | gather + padding_idx |
-| Medium | dropout | Triton Philox-based, scale-aware |
-| Medium | argmax | tile-reduction last dim |
-| Medium | matmul | blocked GEMM with autotune |
-| Hard | flash_attention | FA-v2 forward, causal, D ∈ {16, 32, 64, 128} |
-| Hard | rope | interleaved RoPE |
-| Hard | fused_moe_topk | router softmax + top-k + renorm |
-| Hard | rms_norm_backward | analytic grad_x + atomic grad_w |
+| Easy | silu | `x * sigmoid(x)` |
+| Medium | softmax | online softmax along the last axis |
+| Medium | layer_norm | single-pass mean + variance, no diff materialisation |
+| Medium | rms_norm | Llama-style RMSNorm with fp32 accumulator |
+| Medium | cross_entropy | fused log-softmax + NLL with `ignore_index` |
+| Medium | embedding | gather with optional `padding_idx` |
+| Medium | dropout | Philox-based mask, scale-aware |
+| Medium | argmax | last-dim tile reduction |
+| Medium | matmul | blocked GEMM, autotuned BLOCK_M/N/K |
+| Hard | flash_attention | FA-v2 forward, causal mask, head_dim in {16, 32, 64, 128} |
+| Hard | rope | interleaved RoPE, fp32 cos/sin |
+| Hard | fused_moe_topk | router softmax + top-k + renormalisation |
+| Hard | rms_norm_backward | analytic `grad_x`, atomic `grad_w` |
 
-## Scoring dimensions covered
+## Scoring dimensions
 
-All six FlagGems scoring dimensions are addressed by this submission:
-
-| Dimension | How it's met |
+| Dimension | Evidence |
 |---|---|
-| Functional Correctness | dtype-aware `assert_close` across fp16/bf16/fp32/fp64, edge values (NaN, Inf, zeros), shape sweeps up to 4096×4096, and both `out=` and in-place API paths — 128/128 tests pass |
-| Performance Competitiveness | `triton.autotune` over curated block/warp/stage configs, fp32 internal accumulation, masked tiled GEMM, online softmax, FA-v2-style attention |
-| Open-Source Adaptability | Apache-2.0 licensed, `pyproject.toml` entry point, FlagGems-style `pointwise_dynamic` layout, one op per module |
-| Cross-Platform Compatibility | PyTorch fallback path lets every op import and run on any device; autotune keys lift cleanly to new backends |
-| Test Case Completeness | 128 parametrized cases across 20 operators, plus dedicated edge-value and stride batteries |
-| Code Readability | small focused files, type hints throughout, no dead branches, docstrings on every public entry point |
+| Functional Correctness | 157/157 `pytest` cases pass on the actual Triton + CUDA path; backward kernels validated against `torch.autograd` |
+| Performance Competitiveness | [`BENCHMARKS.md`](BENCHMARKS.md) headline + multi-shape sweep with geomean speedups per op |
+| Open-Source Adaptability | Apache-2.0, `pyproject.toml`, FlagGems-style module layout, one op per file, GitHub Actions CI |
+| Cross-Platform Compatibility | PyTorch fallback on every op, Triton autotune keys that lift to new backends, CI matrix on Py 3.10/3.11/3.12 |
+| Test Case Completeness | parametrised shape x dtype grids, edge-value battery, 5 backward kernels exercised end-to-end |
+| Code Readability | one op per module, type hints throughout, docstrings on every public entry point, per-op rationale in [`docs/TECHNICAL_NOTES.md`](docs/TECHNICAL_NOTES.md) |
 
-See [`docs/SUBMISSION_GUIDE.md`](docs/SUBMISSION_GUIDE.md) for the full submission checklist.
+See [`docs/SUBMISSION_GUIDE.md`](docs/SUBMISSION_GUIDE.md) for the
+submission checklist, [`docs/TECHNICAL_NOTES.md`](docs/TECHNICAL_NOTES.md)
+for per-op design notes and supported envelopes, and
+[`demo/demo.mp4`](demo/demo.mp4) for the narrated walkthrough.
+
+## License
+
+Apache-2.0, see [`LICENSE`](LICENSE).

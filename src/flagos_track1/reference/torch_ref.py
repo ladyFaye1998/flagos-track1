@@ -99,7 +99,7 @@ def ref_matmul(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
 
 # ---------------------------------------------------------------------------
-# Hard tier (4 cutting-edge)
+# Hard tier (4 ops)
 # ---------------------------------------------------------------------------
 def ref_flash_attention(
     q: torch.Tensor,
