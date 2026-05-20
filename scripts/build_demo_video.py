@@ -444,7 +444,10 @@ def _select_backend() -> str:
             used = int(info.get("character_count", 0))
             limit = int(info.get("character_limit", 0))
             remaining = max(0, limit - used)
-            need = sum(len(t) for t in NARRATION) * 2  # rough headroom
+            # Need ~1.1x the raw char count to cover any expansion. ElevenLabs
+            # bills per character of input text, not per credit, so this is a
+            # tight upper bound.
+            need = int(sum(len(t) for t in NARRATION) * 1.1)
             if remaining >= need:
                 return "elevenlabs"
             print(f"[tts] ElevenLabs has only {remaining} chars left, need ~{need}; "
