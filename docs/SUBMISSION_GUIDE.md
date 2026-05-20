@@ -72,19 +72,24 @@ All backward kernels are validated against `torch.autograd` in
 | Test Case Completeness | parametrised shape × dtype grids, edge-value batteries, forward + backward + CPU-parity coverage |
 | Code Readability | one op per file, full type hints, docstrings, per-op rationale in `docs/TECHNICAL_NOTES.md` |
 
-## 6. Upstream contribution
+## 6. Upstream contributions
 
-A focused performance PR for the existing `flag_gems.ops.log10`
-operator is open against the FlagGems repository under the
-"FlagGems Operator Development Competition" prefix:
+Five focused performance PRs are open against the FlagGems repository
+under the "FlagGems Operator Development Competition" prefix. Each PR
+replaces the `pointwise_dynamic` template wrapper with a hand-rolled
+`@libentry()`-decorated Triton kernel that exposes an explicit
+`triton.autotune` sweep over `BLOCK_SIZE`, `num_warps` and `num_stages`,
+keyed on `n_elements`. All paths covered by the existing
+`tests/test_<op>.py` (forward, in-place, `out=`, special values, empty,
+non-contiguous, int promotion) continue to pass.
 
-- [`FlagOpen/FlagGems#3400`](https://github.com/FlagOpen/FlagGems/pull/3400) —
-  `perf(log10): explicit autotune sweep`. Replaces the
-  `pointwise_dynamic` template with a hand-rolled `@libentry()`-decorated
-  Triton kernel that exposes an explicit `triton.autotune` sweep over
-  `BLOCK_SIZE`, `num_warps` and `num_stages`. All existing tests
-  (`tests/test_log10.py`) cover every public path (forward, in-place,
-  `out=`, special values, empty, non-contiguous, int promotion).
+| PR | Op | Notes |
+|---|---|---|
+| [`FlagOpen/FlagGems#3400`](https://github.com/FlagOpen/FlagGems/pull/3400) | `log10` | separate fp64 kernel keeps the accumulator in fp64; preserves `log10`, `log10_`, `log10.out` |
+| [`FlagOpen/FlagGems#3401`](https://github.com/FlagOpen/FlagGems/pull/3401) | `abs` | preserves `abs` and `abs_` |
+| [`FlagOpen/FlagGems#3402`](https://github.com/FlagOpen/FlagGems/pull/3402) | `exp` | preserves `exp`, `exp_`, `exp.out` |
+| [`FlagOpen/FlagGems#3403`](https://github.com/FlagOpen/FlagGems/pull/3403) | `log` | preserves `log` |
+| [`FlagOpen/FlagGems#3404`](https://github.com/FlagOpen/FlagGems/pull/3404) | `tanh` (+ `tanh_backward`) | autotuned backward kernel added; preserves `tanh`, `tanh_`, `tanh_backward` |
 
 ## 7. Submit
 

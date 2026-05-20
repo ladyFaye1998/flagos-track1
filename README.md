@@ -11,10 +11,15 @@ reference path, dtype-aware correctness tests, and a benchmark suite.
 **Project site:** https://ladyfaye1998.github.io/flagos-track1/ — embedded
 demo video, benchmark table, backend matrix, links to the per-op notes.
 
-**Upstream contribution:** [`FlagOpen/FlagGems#3400`](https://github.com/FlagOpen/FlagGems/pull/3400) —
-`perf(log10)` with an explicit `triton.autotune` sweep over
-`BLOCK_SIZE`/`num_warps`/`num_stages`, submitted to the FlagGems Operator
-Development Competition.
+**Upstream contributions to FlagGems** (Operator Development Competition):
+
+| PR | Op | What it does |
+|---|---|---|
+| [`#3400`](https://github.com/FlagOpen/FlagGems/pull/3400) | `log10` | hand-rolled `@libentry()` kernel, explicit `triton.autotune` sweep over `BLOCK_SIZE`/`num_warps`/`num_stages`, separate fp64 path |
+| [`#3401`](https://github.com/FlagOpen/FlagGems/pull/3401) | `abs` | same autotune pattern, contiguous fast path, empty-tensor short-circuit |
+| [`#3402`](https://github.com/FlagOpen/FlagGems/pull/3402) | `exp` | same pattern, fp32 accumulator for fp16/bf16, int→fp32 promotion |
+| [`#3403`](https://github.com/FlagOpen/FlagGems/pull/3403) | `log` | same pattern, fp32 accumulator |
+| [`#3404`](https://github.com/FlagOpen/FlagGems/pull/3404) | `tanh` (+ `tanh_backward`) | same pattern for forward, dedicated autotuned backward kernel |
 
 ## Repository layout
 

@@ -95,7 +95,7 @@ for i, (label, count, color) in enumerate(tiers):
 ax.text(LX, 22, "github.com/ladyFaye1998/flagos-track1",
         ha="left", va="center", fontsize=17, color=ACCENT,
         family="monospace", weight="bold")
-ax.text(LX, 16, "upstream: FlagOpen/FlagGems PR #3400  perf(log10)",
+ax.text(LX, 16, "upstream: 5 FlagGems perf PRs (#3400-#3404)",
         ha="left", va="center", fontsize=11, color=ACCENT2,
         family="monospace")
 ax.text(LX, 11, "by Danielle Lesin  -  Apache-2.0",
