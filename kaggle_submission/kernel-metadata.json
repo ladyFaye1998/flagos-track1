@@ -1,10 +1,10 @@
 {
-  "id": "ladyfaye/flagos-track1-log10",
-  "title": "flagos track1 log10",
+  "id": "ladyfaye/flagos-track1-submission",
+  "title": "FlagOS Track 1 Submission",
   "code_file": "notebook.ipynb",
   "language": "python",
   "kernel_type": "notebook",
-  "is_private": "true",
+  "is_private": "false",
   "enable_gpu": "false",
   "enable_tpu": "false",
   "enable_internet": "true",

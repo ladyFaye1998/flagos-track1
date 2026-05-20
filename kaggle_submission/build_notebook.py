@@ -1,6 +1,14 @@
-"""Generate the Kaggle notebook for the FlagOS Track 1 log10 sub-task.
+"""Generate the public Kaggle notebook for the FlagOS Track 1 submission.
 
 Run: `python build_notebook.py`  (writes ./notebook.ipynb)
+
+The notebook is intentionally a *showcase* + a working `log10` demo:
+- prominent link to the full GitHub repo (20 Triton operators, 178 tests,
+  benchmarks, docs, demo, landing page);
+- a runnable Triton `log10` kernel mirroring the repo implementation,
+  with PyTorch fallback so the cell executes on CPU-only Kaggle workers;
+- correctness checks, a small benchmark, and the competition
+  `submission.csv` generator.
 """
 
 from __future__ import annotations
@@ -9,6 +17,9 @@ import json
 from pathlib import Path
 
 OUT = Path(__file__).parent / "notebook.ipynb"
+
+REPO_URL = "https://github.com/ladyFaye1998/flagos-track1"
+PAGES_URL = "https://ladyfaye1998.github.io/flagos-track1/"
 
 
 def code(src: str) -> dict:
@@ -30,24 +41,39 @@ def md(src: str) -> dict:
 
 
 CELLS = [
-    md("""# FlagOS Track 1 - `torch.log10` Triton operator
+    md(f"""# FlagOS Track 1 — Operator Development and Optimization
 
-A drop-in Triton replacement for `torch.log10`, submitted to the
-**FlagOS Open Computing Global Challenge - Track 1: Operator
-Development & Optimization**.
+**Full submission (20 Triton operators, 178 tests, benchmarks, docs, demo):**
 
-The kernel uses the identity `log10(x) = ln(x) * (1 / ln 10)`, promotes
-fp16 / bf16 inputs to fp32 internally, and falls back to PyTorch when
-CUDA or Triton is unavailable so the notebook executes on any backend.
+- **GitHub repository:** [{REPO_URL}]({REPO_URL})
+- **Project landing page:** [{PAGES_URL}]({PAGES_URL})
+- **License:** Apache-2.0
 
-Contents:
+This Kaggle notebook is the public, runnable companion to the GitHub
+repository above. It contains:
 
-1. Environment.
-2. Kernel + Python wrapper (`log10`, in-place `log10_`).
-3. Correctness vs `torch.log10` (4 dtypes, edge values, shape sweep,
-   `out=` and in-place paths, integer promotion).
-4. Benchmark vs `torch.log10` across 8 problem sizes.
-5. `submission.csv` generation.
+1. A runnable Triton `log10` kernel (the sub-task referenced by the
+   Kaggle leaderboard for Track 1) with a PyTorch fallback so the cells
+   execute on CPU-only Kaggle workers.
+2. Correctness checks against `torch.log10` across four dtypes, edge
+   values, shapes, the `out=` keyword, and the in-place `log10_`.
+3. A small benchmark vs `torch.log10`.
+4. The `submission.csv` generator for the competition.
+
+The full 20-operator implementation, autotune sweeps, multi-shape
+benchmarks, cross-platform device detection, CPU-fallback parity tests
+and supporting documentation live in the repository linked above.
+
+## What is in the repository
+
+| Tier   | Count | Operators |
+|--------|-------|-----------|
+| Easy   | 8     | abs, exp, log, log10, sigmoid, relu, tanh, gelu |
+| Medium | 8     | softmax, layer_norm, matmul, cross_entropy, silu, dropout, embedding, rope-pre |
+| Hard   | 4     | flash_attention, rope, fused_moe_topk, rms_norm_backward |
+
+Backward kernels (softmax / layer_norm / cross_entropy / silu / gelu)
+are validated against `torch.autograd` so training-side use is covered.
 """),
 
     md("## 1. Environment"),
@@ -76,13 +102,19 @@ if DEVICE == "cuda":
 print("device:", DEVICE, "| triton path active:", HAS_TRITON and DEVICE == "cuda")
 """),
 
-    md("""## 2. Kernel and Python wrapper
+    md(f"""## 2. Triton `log10` kernel and Python wrapper
 
-`log10(x) = ln(x) * 0.4342944819032518`. fp16 / bf16 inputs are promoted
-to fp32 inside the kernel and cast back on store, matching PyTorch's
-numerical behaviour. fp64 has its own kernel so the accumulator type is
-not forced down. The wrapper accepts `out=` and exposes an in-place
-variant `log10_`."""),
+`log10(x) = ln(x) * 0.4342944819032518`. fp16 and bf16 inputs are
+promoted to fp32 inside the kernel and cast back on store, matching
+PyTorch's numerical behaviour. fp64 has its own kernel so the
+accumulator type is not forced down. The wrapper accepts `out=` and
+exposes an in-place `log10_`.
+
+The same pattern is used in the repository for every element-wise op,
+with stricter autotune configs and device-capability dispatch — see
+[`src/flagos_track1/ops/easy/pointwise.py`]({REPO_URL}/blob/main/src/flagos_track1/ops/easy/pointwise.py)
+in the GitHub repo.
+"""),
 
     code("""RECIP_LN10 = 1.0 / math.log(10.0)  # 0.4342944819032518
 
@@ -223,9 +255,11 @@ print("ok  integer promotion")
     print(f"peak effective bandwidth      : {peak:.0f} GB/s")
 else:
     print("Skipping CUDA benchmark on CPU. Correctness above still validates the operator.")
+    print("Full multi-shape benchmark results across all 20 ops are in BENCHMARKS.md")
+    print("in the GitHub repository (link in the header).")
 """),
 
-    md("## 5. submission.csv"),
+    md("## 5. `submission.csv`"),
 
     code("""NUM_ROWS = 1000
 x = torch.tensor(
@@ -242,6 +276,19 @@ print(f"wrote {path}  rows={len(targets)}")
 print(pd.read_csv(path).head(3))
 print("...")
 print(pd.read_csv(path).tail(3))
+"""),
+
+    md(f"""## Full submission
+
+The complete Track 1 work — all 20 operators, multi-shape benchmarks,
+cross-platform device detection, CPU-fallback tests, technical notes,
+demo video, and documentation — is in the GitHub repository:
+
+**[{REPO_URL}]({REPO_URL})**
+
+Landing page: **[{PAGES_URL}]({PAGES_URL})**
+
+License: Apache-2.0.
 """),
 ]
 

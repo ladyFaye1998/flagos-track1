@@ -26,3 +26,5 @@ demo/concat*.txt
 demo/_*.mp4
 demo/_*.wav
 demo/_*.png
+demo/_*.json
+scripts/_*.py
