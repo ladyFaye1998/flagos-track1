@@ -56,14 +56,15 @@ The same commands are available without installing the package via
 
 ## Correctness
 
-`pytest` ships with **157 parametrised cases** across 25 forward + backward
+`pytest` ships with **178 parametrised cases** across 25 forward + backward
 kernels, covering fp16 / bf16 / fp32, shape sweeps from `(7,)` to
-`(4096, 4096)`, edge values (NaN, ±Inf, zero boundary), and validates
-backward passes against `torch.autograd`.
+`(4096, 4096)`, edge values (NaN, ±Inf, zero boundary), backward
+validation against `torch.autograd`, and a CPU-fallback parity suite
+that runs in GitHub Actions on every push.
 
 ```bash
 python -m pytest tests/ -q
-# 157 passed
+# 178 passed
 ```
 
 Tolerances are per dtype (`src/flagos_track1/utils.py::TOLERANCE`) and
@@ -72,27 +73,34 @@ match the FlagGems CI defaults.
 ## Benchmarks
 
 Headline numbers below; the full **multi-shape sweep** (small / medium /
-large per op, with geomean speedups) lives in
+large per op, with geomean speedups across shapes) lives in
 [`BENCHMARKS.md`](BENCHMARKS.md). Measured on RTX 3060 Laptop GPU, CUDA
-12.4, fp16 unless noted, median of 20 reps via `triton.testing.do_bench`.
+12.4, fp16 unless noted, median of 100 reps after 25 warmups via
+`triton.testing.do_bench`.
 
 | Tier | Op | Mine (ms) | Torch (ms) | Speedup |
 |---|---|---:|---:|---:|
-| Hard | flash_attention | 0.123 | 2.321 | **18.9x** |
-| Medium | rms_norm | 0.222 | 1.989 | **9.0x** |
-| Hard | rope | 0.014 | 0.087 | **6.0x** |
-| Hard | rms_norm_backward | 0.821 | 4.875 | **5.9x** |
-| Medium | dropout | 0.465 | 1.596 | **3.4x** |
-| Medium | cross_entropy | 0.919 | 2.856 | **3.1x** |
-| Medium | softmax | 0.214 | 0.488 | **2.3x** |
-| Medium | embedding | 0.248 | 0.515 | **2.1x** |
-| Medium | layer_norm | 0.220 | 0.355 | **1.6x** |
-| Medium | argmax | 0.147 | 0.229 | **1.6x** |
+| Hard | flash_attention | 0.176 | 1.702 | **9.7x** |
+| Medium | rms_norm | 0.220 | 1.581 | **7.2x** |
+| Hard | rope | 0.013 | 0.047 | **3.8x** |
+| Medium | dropout | 0.346 | 1.333 | **3.9x** |
+| Hard | rms_norm_backward | 1.405 | 5.008 | **3.6x** |
+| Medium | embedding | 0.224 | 0.616 | **2.8x** |
+| Medium | cross_entropy | 1.308 | 3.283 | **2.5x** |
+| Medium | softmax | 0.224 | 0.409 | **1.8x** |
+| Medium | layer_norm | 0.221 | 0.325 | **1.5x** |
+| Medium | argmax | 0.123 | 0.177 | **1.4x** |
+| Medium | matmul | 0.189 | 0.265 | **1.4x** |
+| Hard | fused_moe_topk | 0.979 | 1.432 | **1.5x** |
 
-Easy-tier element-wise ops are memory-bandwidth-bound and run within ±15%
-of PyTorch's native CUDA kernels (geomean 0.97-1.19x). Every Medium and
-Hard kernel beats the PyTorch reference; the design rationale is in
-[`docs/TECHNICAL_NOTES.md`](docs/TECHNICAL_NOTES.md).
+Every Medium and Hard kernel beats the PyTorch reference. Easy-tier
+element-wise ops are memory-bandwidth-bound — both Triton and the
+native CUDA kernels sit at the bandwidth ceiling, so the geomean
+speedups land between **0.99x and 1.76x** depending on op (full table in
+`BENCHMARKS.md`). The dispatch logic for matmul (Triton in the band
+where it wins, vendor BLAS at the extremes) and the per-vendor tile
+configs are described in [`docs/TECHNICAL_NOTES.md`](docs/TECHNICAL_NOTES.md)
+and [`docs/BACKENDS.md`](docs/BACKENDS.md).
 
 ## The 20 operators
 
@@ -123,17 +131,19 @@ Hard kernel beats the PyTorch reference; the design rationale is in
 
 | Dimension | Evidence |
 |---|---|
-| Functional Correctness | 157/157 `pytest` cases pass on the actual Triton + CUDA path; backward kernels validated against `torch.autograd` |
-| Performance Competitiveness | [`BENCHMARKS.md`](BENCHMARKS.md) headline + multi-shape sweep with geomean speedups per op |
+| Functional Correctness | 178/178 `pytest` cases pass; backward kernels validated against `torch.autograd`; CPU-fallback parity tested on every push |
+| Performance Competitiveness | [`BENCHMARKS.md`](BENCHMARKS.md) — every Medium and Hard kernel beats PyTorch, every Easy kernel matches or beats parity geomean; multi-shape sweep with reproducible methodology |
 | Open-Source Adaptability | Apache-2.0, `pyproject.toml`, FlagGems-style module layout, one op per file, GitHub Actions CI |
-| Cross-Platform Compatibility | PyTorch fallback on every op, Triton autotune keys that lift to new backends, CI matrix on Py 3.10/3.11/3.12 |
-| Test Case Completeness | parametrised shape x dtype grids, edge-value battery, 5 backward kernels exercised end-to-end |
+| Cross-Platform Compatibility | `device_caps.detect()` exposes vendor + arch; per-vendor autotune configs for matmul and flash_attention; PyTorch fallback on every op; CI matrix on Py 3.10/3.11/3.12 verifies CPU parity; see [`docs/BACKENDS.md`](docs/BACKENDS.md) for the supported backend matrix |
+| Test Case Completeness | parametrised shape × dtype grids, edge-value battery, 5 backward kernels exercised end-to-end, CPU-parity coverage of all 20 ops |
 | Code Readability | one op per module, type hints throughout, docstrings on every public entry point, per-op rationale in [`docs/TECHNICAL_NOTES.md`](docs/TECHNICAL_NOTES.md) |
 
 See [`docs/SUBMISSION_GUIDE.md`](docs/SUBMISSION_GUIDE.md) for the
 submission checklist, [`docs/TECHNICAL_NOTES.md`](docs/TECHNICAL_NOTES.md)
-for per-op design notes and supported envelopes, and
-[`demo/demo.mp4`](demo/demo.mp4) for the narrated walkthrough.
+for per-op design notes and supported envelopes,
+[`docs/BACKENDS.md`](docs/BACKENDS.md) for the backend matrix and
+detection logic, and [`demo/demo.mp4`](demo/demo.mp4) for the
+narrated walkthrough.
 
 ## License
 

@@ -51,7 +51,7 @@ def main() -> None:
         "",
         f"- Device: **{_gpu_info()}**",
         f"- Last run: **{now}**",
-        "- Methodology: median of 20 reps after 5 warmups via `triton.testing.do_bench`",
+        "- Methodology: median of 100 reps after 25 warmups via `triton.testing.do_bench`",
         "",
         "Re-run with:",
         "",

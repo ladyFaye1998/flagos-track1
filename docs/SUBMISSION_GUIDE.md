@@ -3,15 +3,16 @@
 ## 1. Pre-flight
 
 ```bash
-flagos info        # torch / triton / cuda versions
+flagos info        # torch / triton / cuda + detected vendor + arch
 flagos list        # confirm all 20 operators are registered
-flagos test        # 157/157 pytest cases on the Triton + CUDA path
+flagos test        # 178/178 pytest cases on the Triton + CUDA path
 flagos bench       # measured ms vs the PyTorch reference
 ```
 
 On CPU-only machines (no CUDA), every op still imports cleanly and runs
-through the PyTorch fallback — useful as a smoke test before pushing to
-a GPU runner.
+through the PyTorch fallback. `tests/test_cpu_fallback.py` exercises
+that path on every push through GitHub Actions so the wrapper contract
+holds regardless of backend.
 
 ## 2. Package the archive
 
@@ -21,10 +22,10 @@ flagos package --out submission.zip
 
 The bundle contains:
 
-- `src/flagos_track1/**` — 20 forward kernels, 5 backward kernels, PyTorch references, utilities
-- `tests/**` — parametrised pytest suite (157 cases, including `tests/backward/`)
+- `src/flagos_track1/**` — 20 forward kernels, 5 backward kernels, PyTorch references, `device_caps`, utilities
+- `tests/**` — parametrised pytest suite (178 cases: forward + backward + CPU parity)
 - `benchmarks/**` — `run_all.py` (headline), `sweep.py` (multi-shape), `save_results.py`
-- `docs/**` — this guide, `TECHNICAL_NOTES.md`, banner
+- `docs/**` — this guide, `TECHNICAL_NOTES.md`, `BACKENDS.md`, banner
 - `BENCHMARKS.md`, `README.md`, `pyproject.toml`, `requirements.txt`, `LICENSE`
 
 Build artefacts (`__pycache__/`, `*.egg-info/`, `demo/audio/`, `demo/frames/`)
@@ -64,11 +65,11 @@ All backward kernels are validated against `torch.autograd` in
 
 | Dimension | Where it lives in the repo |
 |---|---|
-| Functional Correctness | `tests/` — 157 cases, dtype-aware `assert_close`, backward kernels validated against `torch.autograd` |
-| Performance Competitiveness | `BENCHMARKS.md` — headline table + multi-shape sweep with geomean speedup per op |
+| Functional Correctness | `tests/` — 178 cases, dtype-aware `assert_close`, backward kernels validated against `torch.autograd`, CPU-fallback parity on every op |
+| Performance Competitiveness | `BENCHMARKS.md` — every Medium and Hard kernel beats PyTorch geomean; matmul wrapper dispatches between Triton and cuBLAS per shape; multi-shape sweep included |
 | Open-Source Adaptability | Apache-2.0, `pyproject.toml`, FlagGems-style layout, `.github/workflows/ci.yml` matrix |
-| Cross-Platform Compatibility | PyTorch fallback on every op, autotune keys per kernel, CI on Py 3.10/3.11/3.12 |
-| Test Case Completeness | parametrised shape x dtype grids, edge-value batteries, forward + backward coverage |
+| Cross-Platform Compatibility | `device_caps.detect()` → vendor + arch; per-vendor autotune configs for matmul and flash_attention; PyTorch fallback on every op; CPU-parity test in CI; supported backend matrix in `docs/BACKENDS.md` |
+| Test Case Completeness | parametrised shape × dtype grids, edge-value batteries, forward + backward + CPU-parity coverage |
 | Code Readability | one op per file, full type hints, docstrings, per-op rationale in `docs/TECHNICAL_NOTES.md` |
 
 ## 6. Submit

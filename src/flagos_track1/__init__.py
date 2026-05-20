@@ -8,4 +8,5 @@ from __future__ import annotations
 
 __version__ = "0.1.0"
 
+from .device_caps import DeviceCaps, detect as detect_device  # noqa: F401
 from .ops import OP_REGISTRY, get_op, list_ops  # noqa: F401

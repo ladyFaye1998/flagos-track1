@@ -61,7 +61,7 @@ def _time_cpu(fn: Callable[[], None], warmup: int, rep: int) -> float:
     return statistics.median(times)
 
 
-def _time(fn: Callable[[], None], warmup: int = 5, rep: int = 20) -> float:
+def _time(fn: Callable[[], None], warmup: int = 25, rep: int = 100) -> float:
     if torch.cuda.is_available():
         if HAS_DO_BENCH:
             return float(do_bench(fn, warmup=warmup, rep=rep))
@@ -74,8 +74,8 @@ def bench_op(
     ours: Callable[[], torch.Tensor],
     reference: Callable[[], torch.Tensor],
     *,
-    warmup: int = 5,
-    rep: int = 20,
+    warmup: int = 25,
+    rep: int = 100,
 ) -> BenchResult:
     ours_ms = _time(ours, warmup, rep)
     ref_ms = _time(reference, warmup, rep)

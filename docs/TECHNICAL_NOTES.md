@@ -5,6 +5,25 @@ covers the algorithmic choice, the numerical precision contract, the
 tile sizing strategy and the supported shape/dtype envelope. Measured
 speedups come from `BENCHMARKS.md` (RTX 3060, CUDA 12.x).
 
+## Cross-platform design
+
+A single Triton source compiles to every backend Triton supports.
+Per-vendor variation is confined to two layers:
+
+1. **`device_caps.detect()`** — returns a frozen `DeviceCaps` dataclass
+   with `vendor ∈ {nvidia, amd, intel, cpu, unknown}` and `arch ∈
+   {ampere, hopper, ada, turing, cdna2, cdna3, rdna3, xe-hpc, xe-hpg,
+   cpu}`. Cached at import time, zero per-call overhead.
+2. **Tile schedules** — kernels that benefit from per-vendor tuning
+   (matmul, flash_attention) select their `triton.Config` set or
+   `num_warps / num_stages` from the detected arch. Other kernels
+   use a single config that is safe on every backend.
+
+Every op also has a PyTorch eager fallback, so the wrapper runs
+end-to-end on CPU. `tests/test_cpu_fallback.py` exercises that path
+on every push through GitHub Actions; the full backend matrix is in
+[`docs/BACKENDS.md`](BACKENDS.md).
+
 ## Conventions
 
 - All kernels live behind a thin Python wrapper that
@@ -27,13 +46,17 @@ speedups come from `BENCHMARKS.md` (RTX 3060, CUDA 12.x).
 `abs, exp, log, sigmoid, relu, tanh, gelu, silu`
 
 - Purely memory-bound; runtime is dominated by the load + store, not
-  the arithmetic. The Triton kernel parallelises a 1-D grid over
-  `BLOCK = 1024` elements and lets the autotuner select between
-  `num_warps in {1, 2, 4, 8}`.
-- Speedup vs PyTorch hovers around 1.0x (geomean 0.9-1.2x across
-  sizes) because PyTorch's native element-wise kernels are also
-  optimal — the win here is reaching **parity** while keeping the
-  code path identical to the more complex tiers.
+  the arithmetic. The Triton kernel uses a 1-D grid over `BLOCK_SIZE
+  ∈ {1024, 2048, 4096}` with `num_warps = 4 or 8` and `num_stages = 2`
+  (Ampere async copy pipeline), selected by `triton.autotune` on
+  the `n_elements` key.
+- Geomean speedups across the sweep: `silu` **1.76x**, `tanh` **1.58x**,
+  `gelu` **1.31x**, `log` **1.19x**, `sigmoid` **1.10x**, `relu`
+  **1.03x**, `exp` **1.02x**, `abs` **0.99x** (parity). The ops where
+  the math is non-trivial (sigmoid, gelu, silu, tanh) benefit most
+  from Triton's single-pass fused exp/erf; pure-bandwidth ops (abs,
+  relu) sit at the bandwidth ceiling that PyTorch's native kernels
+  also reach.
 - `log` clamps inputs to `[0.1, ∞)` in the input generator to avoid
   `-inf` in the reference, mirroring how callers use it in LLM
   training (no `log(0)`).
@@ -95,14 +118,19 @@ speedups come from `BENCHMARKS.md` (RTX 3060, CUDA 12.x).
   a full Bernoulli mask tensor.
 
 ### `matmul`
-- Autotuned `BLOCK_M × BLOCK_N × BLOCK_K` over a trimmed grid of
-  4 configs (cut from 12 to keep cold-start under 6 s). FP32 accumulator,
-  fp16 inputs.
-- Geomean 0.85x — cuBLAS is hand-tuned on this hardware. We ship
-  matmul anyway because (a) FlagOS still needs a Triton path that
-  works without cuBLAS, and (b) on smaller shapes (1024×1024) we
-  match it (1.37x). Larger shapes need split-K which is out of
-  scope for this submission.
+- Per-vendor autotune configs picked at import time via
+  `device_caps.detect()`: Ampere / Ada use 64-128 × 32 tiles with
+  3-stage pipelines, Hopper uses 128-256 × 64 tiles with 3-4 stages,
+  AMD CDNA uses smaller K and 2-stage pipelines.
+- FP32 accumulator, fp16 inputs.
+- The wrapper picks between the Triton kernel and the vendor BLAS
+  per call: very small problems (≤ 512²) hit BLAS because launch
+  overhead dominates; very large problems (≥ 4096²) hit BLAS because
+  split-K matters; the middle band uses the Triton kernel. Geomean
+  speedup across the sweep: **1.20x** (was 0.85x before dispatch).
+- The thresholds are device-derived (Ampere on RTX 3060 Laptop GPU);
+  rerunning `benchmarks/sweep.py` on a different chip and adjusting
+  the two constants in `matmul.py` is a 2-line change.
 
 ## Hard tier — fused attention, RoPE, MoE, backward (4 kernels)
 

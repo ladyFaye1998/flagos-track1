@@ -12,6 +12,7 @@ import math
 
 import torch
 
+from ...device_caps import detect
 from ...utils import HAS_TRITON, has_cuda
 
 if HAS_TRITON:
@@ -103,8 +104,7 @@ def flash_attention_op(
 
     B, H, N, D = q.shape
     o = torch.empty_like(q)
-    BLOCK_M = 64
-    BLOCK_N = 64
+    BLOCK_M, BLOCK_N, num_warps, num_stages = _pick_tile(D)
     grid = ((N + BLOCK_M - 1) // BLOCK_M, B * H)
     _attn_fwd_kernel[grid](
         q, k, v, o,
@@ -116,6 +116,25 @@ def flash_attention_op(
         B, H, N,
         BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N,
         BLOCK_DMODEL=D, CAUSAL=causal,
-        num_warps=4, num_stages=2,
+        num_warps=num_warps, num_stages=num_stages,
     )
     return o
+
+
+def _pick_tile(head_dim: int) -> tuple[int, int, int, int]:
+    """Return (BLOCK_M, BLOCK_N, num_warps, num_stages) for the current device.
+
+    The Triton source is identical across backends; only the launch
+    parameters change. The default tuple is what FlashAttention-2 uses
+    on Ampere and serves as a safe fallback for anything else.
+    """
+    caps = detect()
+    if caps.is_nvidia():
+        if caps.arch == "hopper":
+            return (128, 128, 8, 3) if head_dim <= 64 else (128, 64, 8, 3)
+        # Ampere / Ada / Turing
+        return (64, 64, 4, 2)
+    if caps.is_amd():
+        # CDNA prefers smaller M tiles and 2-stage pipelines.
+        return (64, 32, 4, 1)
+    return (64, 64, 4, 2)

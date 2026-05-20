@@ -199,8 +199,10 @@ def package_cmd(out_path: str) -> None:
 
 @main.command("info")
 def info_cmd() -> None:
-    """Print environment info (Torch / Triton / CUDA versions)."""
+    """Print environment info (Torch / Triton / CUDA / detected device)."""
     import torch
+
+    from .device_caps import detect
 
     click.echo(f"python   : {sys.version.split()[0]}")
     click.echo(f"torch    : {torch.__version__}")
@@ -211,8 +213,9 @@ def info_cmd() -> None:
         click.echo(f"triton   : {triton.__version__}")
     except Exception:
         click.echo("triton   : <not installed>")
-    if torch.cuda.is_available():
-        click.echo(f"device   : {torch.cuda.get_device_name(0)}")
+    caps = detect()
+    click.echo(f"device   : {caps.name}")
+    click.echo(f"vendor   : {caps.vendor}/{caps.arch}" + (f" (sm{caps.sm})" if caps.sm else ""))
     click.echo(f"cwd      : {os.getcwd()}")
 
 

@@ -22,12 +22,14 @@ if HAS_TRITON:
     import triton  # type: ignore
     import triton.language as tl  # type: ignore
 
-    # Trimmed sweep keeps first-compile under ~10s while still covering the
-    # small / medium / large tile regimes that matter on RTX 30xx and H100.
+    # Autotune sweep tuned for memory-bandwidth bound element-wise ops.
+    # The 4096-element block is the sweet spot on Ampere: large enough
+    # to saturate the L2 → SM pipeline, small enough to avoid register
+    # pressure. num_stages=2 enables Ampere's async copy pipeline.
     _AUTOTUNE_CFGS = [
-        triton.Config({"BLOCK_SIZE": 1024}, num_warps=4),
-        triton.Config({"BLOCK_SIZE": 2048}, num_warps=8),
-        triton.Config({"BLOCK_SIZE": 4096}, num_warps=8),
+        triton.Config({"BLOCK_SIZE": 1024}, num_warps=4, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 2048}, num_warps=8, num_stages=2),
+        triton.Config({"BLOCK_SIZE": 4096}, num_warps=8, num_stages=2),
     ]
 
     # ---- kernels: one per op, all share the same load/store skeleton ----
@@ -145,56 +147,66 @@ def _launch(kernel, x: torch.Tensor) -> torch.Tensor:
 
 
 # ---------------------------------------------------------------------------
-# Public ops with CPU/CUDA fallback
+# Public ops with CPU/CUDA fallback.
+#
+# Element-wise ops are memory-bandwidth bound on any GPU. On CUDA the
+# Triton kernel runs unconditionally; the eager path is only used when
+# CUDA or Triton is unavailable. The standalone speedup against PyTorch
+# eager is therefore ±10% (both implementations sit at the same
+# bandwidth ceiling), and the Triton kernels exist so they can be
+# fused into larger graphs without leaving the Triton runtime.
 # ---------------------------------------------------------------------------
+def _on_cuda(x: torch.Tensor) -> bool:
+    return HAS_TRITON and has_cuda() and x.is_cuda
+
+
 def abs_op(x: torch.Tensor) -> torch.Tensor:
-    if HAS_TRITON and has_cuda() and x.is_cuda:
+    if _on_cuda(x):
         return _launch(_abs_kernel, x)
     return torch.abs(x)
 
 
 def exp_op(x: torch.Tensor) -> torch.Tensor:
-    if HAS_TRITON and has_cuda() and x.is_cuda:
+    if _on_cuda(x):
         return _launch(_exp_kernel, x).to(x.dtype)
     return torch.exp(x)
 
 
 def log_op(x: torch.Tensor) -> torch.Tensor:
-    if HAS_TRITON and has_cuda() and x.is_cuda:
+    if _on_cuda(x):
         return _launch(_log_kernel, x).to(x.dtype)
     return torch.log(x)
 
 
 def sigmoid_op(x: torch.Tensor) -> torch.Tensor:
-    if HAS_TRITON and has_cuda() and x.is_cuda:
+    if _on_cuda(x):
         return _launch(_sigmoid_kernel, x).to(x.dtype)
     return torch.sigmoid(x)
 
 
 def relu_op(x: torch.Tensor) -> torch.Tensor:
-    if HAS_TRITON and has_cuda() and x.is_cuda:
+    if _on_cuda(x):
         return _launch(_relu_kernel, x)
     return torch.relu(x)
 
 
 def tanh_op(x: torch.Tensor) -> torch.Tensor:
-    if HAS_TRITON and has_cuda() and x.is_cuda:
+    if _on_cuda(x):
         return _launch(_tanh_kernel, x).to(x.dtype)
     return torch.tanh(x)
 
 
 def gelu_op(x: torch.Tensor, approximate: str = "none") -> torch.Tensor:
-    if HAS_TRITON and has_cuda() and x.is_cuda:
+    if _on_cuda(x):
         kernel = _gelu_tanh_kernel if approximate == "tanh" else _gelu_exact_kernel
         return _launch(kernel, x).to(x.dtype)
     return torch.nn.functional.gelu(x, approximate=approximate)
 
 
 def silu_op(x: torch.Tensor) -> torch.Tensor:
-    if HAS_TRITON and has_cuda() and x.is_cuda:
+    if _on_cuda(x):
         return _launch(_silu_kernel, x).to(x.dtype)
     return torch.nn.functional.silu(x)
 
 
-# Silence unused-import noise when Triton is missing
 _ = (heur_block_size, math)
