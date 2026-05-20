@@ -4,8 +4,8 @@ Layout (1280 x 640, all coords in 0..100 canvas units):
 
   +----------------------------------------------+
   |  | FlagOS Track 1                            |
-  |  | 20 Triton GPU Operators       [128]  [4]  |
-  |  | FlagOS Open Computing -- S1   tests dtypes|
+  |  | 20 Triton GPU Operators       [178]  [25] |
+  |  | FlagOS Open Computing -- S1   tests kernel|
   |  |                              ------ ------|
   |  |                              [APACHE] [PT]|
   |  | [EASY]  [MEDIUM]  [HARD]      2.0   fall  |
@@ -100,8 +100,8 @@ ax.text(LX, 12, "by Danielle Lesin  -  Apache-2.0",
 
 # ----- Right column: 2x2 stat card grid -----
 STATS = [
-    ("128", "tests pass",    ACCENT2),
-    ("4",   "dtypes",        ACCENT3),
+    ("178", "tests pass",    ACCENT2),
+    ("25",  "kernels",       ACCENT3),
     ("20",  "Triton ops",    ACCENT),
     ("3",   "tiers",         ACCENT4),
 ]
@@ -135,7 +135,7 @@ ax.text(GX0 + (2 * CARD_W + HGAP) / 2, 19,
         ha="center", va="center", fontsize=13, color=MUTED,
         family="monospace")
 ax.text(GX0 + (2 * CARD_W + HGAP) / 2, 14,
-        "128 / 128 green  /  Apache-2.0",
+        "178 / 178 green  /  Apache-2.0",
         ha="center", va="center", fontsize=11, color=ACCENT2,
         family="monospace")
 
