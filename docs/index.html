@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>FlagOS Track 1 — 20 Triton GPU Operators</title>
+<meta name="description" content="Submission for the FlagOS Open Computing Global Challenge — 20 Triton kernels, 25 forward + backward ops, 178 tests, multi-shape benchmarks." />
+
+<meta property="og:title" content="FlagOS Track 1 — 20 Triton GPU Operators" />
+<meta property="og:description" content="20 Triton kernels, 178 tests, multi-shape benchmarks. Flash attention 9.7x, rms_norm 7.2x, every medium and hard kernel beats PyTorch." />
+<meta property="og:image" content="banner.png" />
+<meta property="og:type" content="website" />
+
+<link rel="icon" type="image/png" href="banner.png" />
+
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #1c2128;
+  --border: #30363d;
+  --fg: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent-2: #3fb950;
+  --accent-3: #d29922;
+  --accent-4: #f85149;
+  --code-bg: #010409;
+  --max: 1140px;
+  --radius: 12px;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter",
+               "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--fg);
+  background:
+    radial-gradient(1200px 600px at 50% -200px, rgba(88, 166, 255, 0.10), transparent 60%),
+    var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.container { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+
+/* Top nav */
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(13, 17, 23, 0.78);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px;
+}
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 700; font-size: 15px; letter-spacing: -0.01em;
+  color: var(--fg);
+}
+.brand-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+}
+.nav-links { display: flex; gap: 22px; }
+.nav-links a {
+  color: var(--muted); font-size: 14px; font-weight: 500;
+}
+.nav-links a:hover { color: var(--fg); text-decoration: none; }
+@media (max-width: 640px) { .nav-links { display: none; } }
+
+/* Hero */
+.hero { padding: 64px 0 40px; }
+.hero h1 {
+  font-size: clamp(34px, 5vw, 52px);
+  line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #b6c2cf 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.hero p.lead {
+  font-size: clamp(16px, 1.7vw, 19px); color: var(--muted);
+  max-width: 720px; margin: 0 0 32px;
+}
+.hero .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: 8px; font-size: 14px;
+  font-weight: 600; border: 1px solid var(--border);
+  background: var(--surface); color: var(--fg);
+  transition: all 0.15s ease;
+}
+.btn:hover { text-decoration: none; border-color: var(--accent); transform: translateY(-1px); }
+.btn-primary {
+  background: linear-gradient(180deg, #1f6feb 0%, #1158c7 100%);
+  border-color: rgba(255, 255, 255, 0.12); color: #fff;
+}
+.btn-primary:hover { border-color: rgba(255, 255, 255, 0.25); }
+.btn svg { width: 16px; height: 16px; }
+
+.hero-banner { margin: 40px 0 0; }
+.hero-banner img {
+  width: 100%; height: auto; border-radius: var(--radius);
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+
+/* Stat strip */
+.stats {
+  margin: 56px 0 0;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+}
+@media (max-width: 720px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+.stat {
+  padding: 22px 20px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface);
+}
+.stat .num {
+  font-size: clamp(28px, 3vw, 34px); font-weight: 700; letter-spacing: -0.02em;
+  background: linear-gradient(180deg, var(--accent) 0%, #4593ee 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.stat .label { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+/* Sections */
+section { padding: 72px 0 0; }
+section h2 {
+  font-size: clamp(22px, 2.4vw, 28px); letter-spacing: -0.015em;
+  margin: 0 0 8px;
+}
+section .sub { color: var(--muted); margin: 0 0 28px; max-width: 720px; }
+
+/* Video */
+.video-wrap {
+  border-radius: var(--radius); overflow: hidden;
+  border: 1px solid var(--border); background: #000;
+  box-shadow: var(--shadow);
+}
+.video-wrap video { display: block; width: 100%; height: auto; }
+.video-meta {
+  margin-top: 14px; color: var(--muted); font-size: 13px;
+  display: flex; gap: 18px; flex-wrap: wrap;
+}
+.video-meta strong { color: var(--fg); font-weight: 600; }
+
+/* Cards */
+.cards {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+}
+@media (max-width: 880px) { .cards { grid-template-columns: 1fr; } }
+.card {
+  padding: 22px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.card:hover { transform: translateY(-2px); border-color: var(--accent); }
+.card h3 {
+  font-size: 16px; margin: 0 0 8px; letter-spacing: -0.01em;
+  display: flex; align-items: center; gap: 10px;
+}
+.card .badge {
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  background: rgba(88, 166, 255, 0.15); color: var(--accent);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
+}
+.card p { margin: 0; color: var(--muted); font-size: 14px; }
+.card ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
+.card ul li { margin: 4px 0; }
+.card ul li code { color: var(--fg); }
+
+/* Benchmark table */
+.bench-wrap {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); overflow: hidden;
+}
+table.bench {
+  width: 100%; border-collapse: collapse; font-size: 14px;
+}
+table.bench th, table.bench td {
+  text-align: left; padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+table.bench th {
+  color: var(--muted); font-weight: 600; font-size: 12px;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  background: var(--surface-2);
+}
+table.bench tbody tr:last-child td { border-bottom: 0; }
+table.bench tbody tr:hover td { background: rgba(88, 166, 255, 0.04); }
+table.bench .num-cell { font-variant-numeric: tabular-nums; text-align: right; }
+table.bench .speedup {
+  font-weight: 700; color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+table.bench .tier {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tier-easy   { background: rgba(125, 133, 144, 0.15); color: var(--muted); }
+.tier-medium { background: rgba(210, 153, 34,  0.15); color: var(--accent-3); }
+.tier-hard   { background: rgba(248,  81, 73,  0.15); color: var(--accent-4); }
+
+/* Code */
+pre.code {
+  margin: 0; padding: 20px 22px; border-radius: var(--radius);
+  background: var(--code-bg); border: 1px solid var(--border);
+  overflow-x: auto; font-size: 13px; line-height: 1.6;
+  font-family: "SFMono-Regular", "Consolas", "Liberation Mono", Menlo, monospace;
+  color: #c9d1d9;
+}
+pre.code .c { color: #8b949e; }   /* comment */
+pre.code .k { color: #ff7b72; }   /* keyword */
+pre.code .s { color: #a5d6ff; }   /* string  */
+pre.code .n { color: #79c0ff; }   /* number  */
+pre.code .f { color: #d2a8ff; }   /* function */
+
+/* Backend matrix */
+.matrix {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+}
+@media (max-width: 720px) { .matrix { grid-template-columns: 1fr; } }
+.matrix-cell {
+  padding: 18px 20px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface);
+}
+.matrix-cell h4 {
+  margin: 0 0 6px; font-size: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.matrix-cell .arch { color: var(--muted); font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot-ok   { background: var(--accent-2); box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.15); }
+.dot-arch { background: var(--accent);   box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15); }
+
+/* Footer */
+footer {
+  margin-top: 96px; padding: 32px 0 40px;
+  border-top: 1px solid var(--border);
+  color: var(--muted); font-size: 13px;
+}
+footer .container {
+  display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+}
+footer a { color: var(--muted); }
+footer a:hover { color: var(--fg); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="#top">
+      <span class="brand-dot"></span>
+      <span>FlagOS Track 1</span>
+    </a>
+    <div class="nav-links">
+      <a href="#demo">Demo</a>
+      <a href="#benchmarks">Benchmarks</a>
+      <a href="#design">Design</a>
+      <a href="#backends">Backends</a>
+      <a href="https://github.com/ladyFaye1998/flagos-track1" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero container" id="top">
+  <h1>20 Triton GPU operators, end-to-end.</h1>
+  <p class="lead">
+    Submission for the FlagOS Open Computing Global Challenge — Season 1,
+    Track 1. Twenty operators implemented as autotuned Triton kernels,
+    25 forward + backward ops total, 178 correctness tests on the
+    Triton + CUDA path, and a multi-shape benchmark sweep with
+    reproducible methodology.
+  </p>
+  <div class="cta">
+    <a class="btn btn-primary" href="https://github.com/ladyFaye1998/flagos-track1" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8a8.01 8.01 0 005.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.69-.01-1.36-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      View on GitHub
+    </a>
+    <a class="btn" href="#demo">Watch demo</a>
+    <a class="btn" href="https://github.com/ladyFaye1998/flagos-track1/blob/main/BENCHMARKS.md" target="_blank" rel="noopener">Read benchmarks</a>
+  </div>
+  <div class="hero-banner">
+    <img src="banner.png" alt="FlagOS Track 1 — 20 Triton GPU Operators" />
+  </div>
+</header>
+
+<div class="container">
+  <div class="stats">
+    <div class="stat">
+      <div class="num">178</div>
+      <div class="label">pytest cases passing</div>
+    </div>
+    <div class="stat">
+      <div class="num">25</div>
+      <div class="label">kernels (20 forward + 5 backward)</div>
+    </div>
+    <div class="stat">
+      <div class="num">9.7&times;</div>
+      <div class="label">flash attention speedup</div>
+    </div>
+    <div class="stat">
+      <div class="num">3</div>
+      <div class="label">Python versions in CI</div>
+    </div>
+  </div>
+</div>
+
+<section id="demo" class="container">
+  <h2>Narrated walkthrough</h2>
+  <p class="sub">
+    88-second walkthrough of the architecture, tests, CLI, scoring
+    dimensions and benchmark numbers. Voiced narration, no slide deck
+    placeholders.
+  </p>
+  <div class="video-wrap">
+    <video controls preload="metadata" poster="banner.png">
+      <source src="https://github.com/ladyFaye1998/flagos-track1/raw/main/demo/demo.mp4" type="video/mp4" />
+      Your browser doesn't support embedded video.
+      <a href="https://github.com/ladyFaye1998/flagos-track1/raw/main/demo/demo.mp4">Download the MP4</a>.
+    </video>
+  </div>
+  <div class="video-meta">
+    <span><strong>Duration:</strong> 88 s</span>
+    <span><strong>Resolution:</strong> 1920 &times; 1080</span>
+    <span><strong>Narration:</strong> Azure Neural Ava</span>
+    <span><strong>Source:</strong> <a href="https://github.com/ladyFaye1998/flagos-track1/blob/main/scripts/build_demo_video.py" target="_blank" rel="noopener">scripts/build_demo_video.py</a></span>
+  </div>
+</section>
+
+<section id="design" class="container">
+  <h2>What's in the box</h2>
+  <p class="sub">
+    Three tiers, one op per file, PyTorch reference and Triton kernel
+    side by side. Backward kernels for the five ops that real training
+    pipelines differentiate.
+  </p>
+  <div class="cards">
+    <div class="card">
+      <h3><span class="badge">Easy</span> 8 element-wise</h3>
+      <p>abs, exp, log, sigmoid, relu, tanh, gelu (exact + tanh), silu.</p>
+      <ul>
+        <li>fp32 internal compute, dtype-preserving output</li>
+        <li>Autotuned <code>BLOCK_SIZE &in; {1024, 2048, 4096}</code></li>
+        <li>Geomean parity to 1.76&times; vs eager (bandwidth-bound)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="badge">Medium</span> 8 classical</h3>
+      <p>softmax, layer_norm, rms_norm, cross_entropy, embedding, dropout, argmax, matmul.</p>
+      <ul>
+        <li>Single-pass fused reductions, fp32 accumulators</li>
+        <li>matmul wrapper auto-dispatches Triton ↔ vendor BLAS per shape</li>
+        <li>Geomean wins: rms_norm 7.5&times;, embedding 4.3&times;</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="badge">Hard</span> 4 advanced</h3>
+      <p>flash_attention (FA-v2 forward, causal), rope, fused_moe_topk, rms_norm_backward.</p>
+      <ul>
+        <li>Per-arch tile schedule on flash_attention</li>
+        <li>fp32 router GEMM in fused_moe_topk for precision</li>
+        <li>Geomean wins: flash 10.6&times;, rope 5.2&times;</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="benchmarks" class="container">
+  <h2>Benchmarks</h2>
+  <p class="sub">
+    Headline speedups measured on RTX 3060 Laptop GPU (Ampere sm_86),
+    CUDA 12.4, fp16 unless noted, median of 100 reps after 25 warmups
+    via <code>triton.testing.do_bench</code>. Full multi-shape sweep in
+    <a href="https://github.com/ladyFaye1998/flagos-track1/blob/main/BENCHMARKS.md" target="_blank" rel="noopener">BENCHMARKS.md</a>.
+  </p>
+  <div class="bench-wrap">
+    <table class="bench">
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th>Operator</th>
+          <th class="num-cell">Mine (ms)</th>
+          <th class="num-cell">Torch (ms)</th>
+          <th class="num-cell">Speedup</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tier tier-hard">Hard</span></td>   <td>flash_attention</td>   <td class="num-cell">0.176</td> <td class="num-cell">1.702</td> <td class="num-cell speedup">9.7&times;</td></tr>
+        <tr><td><span class="tier tier-medium">Medium</span></td><td>rms_norm</td>          <td class="num-cell">0.220</td> <td class="num-cell">1.581</td> <td class="num-cell speedup">7.2&times;</td></tr>
+        <tr><td><span class="tier tier-medium">Medium</span></td><td>dropout</td>           <td class="num-cell">0.346</td> <td class="num-cell">1.333</td> <td class="num-cell speedup">3.9&times;</td></tr>
+        <tr><td><span class="tier tier-hard">Hard</span></td>   <td>rope</td>              <td class="num-cell">0.013</td> <td class="num-cell">0.047</td> <td class="num-cell speedup">3.8&times;</td></tr>
+        <tr><td><span class="tier tier-hard">Hard</span></td>   <td>rms_norm_backward</td> <td class="num-cell">1.405</td> <td class="num-cell">5.008</td> <td class="num-cell speedup">3.6&times;</td></tr>
+        <tr><td><span class="tier tier-medium">Medium</span></td><td>embedding</td>         <td class="num-cell">0.224</td> <td class="num-cell">0.616</td> <td class="num-cell speedup">2.8&times;</td></tr>
+        <tr><td><span class="tier tier-medium">Medium</span></td><td>cross_entropy</td>     <td class="num-cell">1.308</td> <td class="num-cell">3.283</td> <td class="num-cell speedup">2.5&times;</td></tr>
+        <tr><td><span class="tier tier-medium">Medium</span></td><td>softmax</td>           <td class="num-cell">0.224</td> <td class="num-cell">0.409</td> <td class="num-cell speedup">1.8&times;</td></tr>
+        <tr><td><span class="tier tier-medium">Medium</span></td><td>layer_norm</td>        <td class="num-cell">0.221</td> <td class="num-cell">0.325</td> <td class="num-cell speedup">1.5&times;</td></tr>
+        <tr><td><span class="tier tier-hard">Hard</span></td>   <td>fused_moe_topk</td>    <td class="num-cell">0.979</td> <td class="num-cell">1.432</td> <td class="num-cell speedup">1.5&times;</td></tr>
+        <tr><td><span class="tier tier-medium">Medium</span></td><td>matmul</td>            <td class="num-cell">0.189</td> <td class="num-cell">0.265</td> <td class="num-cell speedup">1.4&times;</td></tr>
+        <tr><td><span class="tier tier-medium">Medium</span></td><td>argmax</td>            <td class="num-cell">0.123</td> <td class="num-cell">0.177</td> <td class="num-cell speedup">1.4&times;</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="kernel" class="container">
+  <h2>One example kernel</h2>
+  <p class="sub">
+    The fused single-pass <code>rms_norm</code> forward. Mean of squares
+    in fp32, rsqrt, scale, store — all in one launch.
+  </p>
+<pre class="code"><span class="k">@triton.jit</span>
+<span class="k">def</span> <span class="f">_rms_norm_kernel</span>(
+    x_ptr, w_ptr, y_ptr,
+    n_cols, eps,
+    stride_xr, stride_yr,
+    BLOCK_N: tl.<span class="n">constexpr</span>,
+):
+    row = tl.program_id(<span class="n">0</span>)
+    col_offs = tl.arange(<span class="n">0</span>, BLOCK_N)
+    mask = col_offs &lt; n_cols
+
+    x = tl.load(x_ptr + row * stride_xr + col_offs, mask=mask, other=<span class="n">0.0</span>).to(tl.<span class="n">float32</span>)
+    w = tl.load(w_ptr + col_offs,                   mask=mask, other=<span class="n">1.0</span>).to(tl.<span class="n">float32</span>)
+
+    <span class="c"># single-pass mean of squares -> rstd -> normalize -> scale</span>
+    var  = tl.sum(x * x, axis=<span class="n">0</span>) / n_cols
+    rstd = <span class="n">1.0</span> / tl.sqrt(var + eps)
+    y    = x * rstd * w
+
+    tl.store(y_ptr + row * stride_yr + col_offs, y.to(y_ptr.dtype.element_ty), mask=mask)
+</pre>
+</section>
+
+<section id="backends" class="container">
+  <h2>Cross-platform</h2>
+  <p class="sub">
+    <code>device_caps.detect()</code> returns the vendor + arch at
+    import time. Kernels with per-vendor tile schedules
+    (<code>matmul</code>, <code>flash_attention</code>) read from it
+    and pick the right config. Full matrix in
+    <a href="https://github.com/ladyFaye1998/flagos-track1/blob/main/docs/BACKENDS.md" target="_blank" rel="noopener">BACKENDS.md</a>.
+  </p>
+  <div class="matrix">
+    <div class="matrix-cell">
+      <h4><span class="dot dot-ok"></span> NVIDIA Ampere (sm_80 / 86 / 87)</h4>
+      <div class="arch">Tested by author on RTX 3060 Laptop GPU · per-vendor configs for matmul + flash_attention</div>
+    </div>
+    <div class="matrix-cell">
+      <h4><span class="dot dot-arch"></span> NVIDIA Hopper (sm_90)</h4>
+      <div class="arch">Larger 128&times;256&times;64 tiles, 3-stage pipeline · selected from <code>arch == "hopper"</code></div>
+    </div>
+    <div class="matrix-cell">
+      <h4><span class="dot dot-arch"></span> NVIDIA Ada (sm_89) · Turing (sm_75)</h4>
+      <div class="arch">Uses the Ampere config path</div>
+    </div>
+    <div class="matrix-cell">
+      <h4><span class="dot dot-arch"></span> AMD CDNA2 / CDNA3 (MI200, MI300)</h4>
+      <div class="arch">Smaller K tiles, 2-stage pipeline · selected from <code>vendor == "amd"</code></div>
+    </div>
+    <div class="matrix-cell">
+      <h4><span class="dot dot-arch"></span> Intel Xe-HPC / Xe-HPG</h4>
+      <div class="arch">Default config set via Triton's standard backend</div>
+    </div>
+    <div class="matrix-cell">
+      <h4><span class="dot dot-ok"></span> CPU (no CUDA, no Triton)</h4>
+      <div class="arch">PyTorch eager fallback · 21 parity cases run in GitHub Actions on every push</div>
+    </div>
+  </div>
+</section>
+
+<section id="links" class="container">
+  <h2>Read more</h2>
+  <p class="sub">Everything below lives in the same repo.</p>
+  <div class="cards">
+    <div class="card">
+      <h3>README.md</h3>
+      <p>Repository layout, install, CLI reference, scoring dimensions.</p>
+      <p style="margin-top: 12px;"><a href="https://github.com/ladyFaye1998/flagos-track1#readme" target="_blank" rel="noopener">Open &rarr;</a></p>
+    </div>
+    <div class="card">
+      <h3>TECHNICAL_NOTES.md</h3>
+      <p>Per-op rationale, numerical contract, tile sizing, supported envelope.</p>
+      <p style="margin-top: 12px;"><a href="https://github.com/ladyFaye1998/flagos-track1/blob/main/docs/TECHNICAL_NOTES.md" target="_blank" rel="noopener">Open &rarr;</a></p>
+    </div>
+    <div class="card">
+      <h3>BENCHMARKS.md</h3>
+      <p>Headline table and full multi-shape sweep with geomean speedups per op.</p>
+      <p style="margin-top: 12px;"><a href="https://github.com/ladyFaye1998/flagos-track1/blob/main/BENCHMARKS.md" target="_blank" rel="noopener">Open &rarr;</a></p>
+    </div>
+    <div class="card">
+      <h3>BACKENDS.md</h3>
+      <p>Supported backend matrix and the per-op detection logic.</p>
+      <p style="margin-top: 12px;"><a href="https://github.com/ladyFaye1998/flagos-track1/blob/main/docs/BACKENDS.md" target="_blank" rel="noopener">Open &rarr;</a></p>
+    </div>
+    <div class="card">
+      <h3>SUBMISSION_GUIDE.md</h3>
+      <p>Pre-flight checklist, packaging command, scoring-dimension cheat sheet.</p>
+      <p style="margin-top: 12px;"><a href="https://github.com/ladyFaye1998/flagos-track1/blob/main/docs/SUBMISSION_GUIDE.md" target="_blank" rel="noopener">Open &rarr;</a></p>
+    </div>
+    <div class="card">
+      <h3>tests/</h3>
+      <p>178 parametrised cases: forward, backward (vs <code>torch.autograd</code>) and CPU parity.</p>
+      <p style="margin-top: 12px;"><a href="https://github.com/ladyFaye1998/flagos-track1/tree/main/tests" target="_blank" rel="noopener">Open &rarr;</a></p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div>
+      Built by Danielle Lesin &middot; Apache-2.0 &middot;
+      <a href="https://github.com/ladyFaye1998/flagos-track1">github.com/ladyFaye1998/flagos-track1</a>
+    </div>
+    <div>
+      FlagOS Open Computing Global Challenge &middot; Season 1, Track 1
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

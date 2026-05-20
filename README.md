@@ -8,6 +8,9 @@ Submission for the **FlagOS Open Computing Global Challenge (Season 1, Track 1)*
 Twenty operators implemented as autotuned Triton kernels with a PyTorch
 reference path, dtype-aware correctness tests, and a benchmark suite.
 
+**Project site:** https://ladyfaye1998.github.io/flagos-track1/ — embedded
+demo video, benchmark table, backend matrix, links to the per-op notes.
+
 ## Repository layout
 
 ```
