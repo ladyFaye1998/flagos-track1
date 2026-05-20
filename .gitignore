@@ -18,3 +18,7 @@ agent-tools/
 terminals/
 *.log
 node_modules/
+
+# Demo build artifacts (keep demo/demo.mp4 itself committed)
+demo/frames/
+demo/concat.txt
