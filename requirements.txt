@@ -7,3 +7,8 @@ pytest-benchmark>=4.0
 rich>=13.7
 click>=8.1
 tabulate>=0.9
+
+# Demo video toolchain (scripts/build_demo_video.py + scripts/build_banner.py)
+matplotlib>=3.7
+Pillow>=10.0
+edge-tts>=7.2

@@ -2,28 +2,37 @@
 
 Steps:
   1. Render 8 PNG slides (1920x1080) with matplotlib.
-  2. Generate per-slide narration WAV via Windows SAPI (Zira en-US).
-  3. Measure each WAV duration so the slide visible time matches the narration.
-  4. Concatenate slides with ffmpeg concat demuxer.
-  5. Concatenate audio with ffmpeg concat demuxer.
+  2. Generate per-slide narration MP3 with a real neural voice.
+     Backend priority (auto-selected):
+       a) ElevenLabs (if key + quota available)
+       b) Microsoft Edge TTS via the `edge-tts` package (no key needed,
+          Azure Neural quality)
+  3. Measure each MP3 duration with ffprobe so the slide visible time
+     matches the narration.
+  4. Concatenate slides with the ffmpeg concat demuxer.
+  5. Pad each narration clip to its slide duration and concat the audio.
   6. Mux video + audio into demo/demo.mp4.
 
 Outputs:
   demo/frames/slide_*.png
-  demo/audio/slide_*.wav
+  demo/audio/slide_*.mp3
   demo/demo.mp4
 
 Requirements:
-  Windows + matplotlib + ffmpeg on PATH (gyan.dev build works).
+  matplotlib + Pillow + ffmpeg (+ ffprobe) on PATH + the `edge-tts` Python
+  package. Network access required (TTS provider is online).
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import shutil
 import subprocess
 import textwrap
-import wave
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import List
 
@@ -31,6 +40,30 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+
+
+def _load_dotenv(path: Path) -> None:
+    """Light-weight .env loader so we don't pull in python-dotenv."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip())
+
+
+_load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+# Backend selection: 'auto' (default), 'elevenlabs', or 'edge'
+TTS_BACKEND = os.environ.get("TTS_BACKEND", "auto").lower()
+ELEVEN_KEY = os.environ.get("ELEVENLABS_API_KEY")
+ELEVEN_VOICE = os.environ.get("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
+ELEVEN_MODEL = os.environ.get("ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5")
+EDGE_VOICE = os.environ.get("EDGE_TTS_VOICE", "en-US-AvaMultilingualNeural")
+EDGE_RATE = os.environ.get("EDGE_TTS_RATE", "-5%")  # slightly slower than default
+EDGE_PITCH = os.environ.get("EDGE_TTS_PITCH", "+0Hz")
 
 ROOT = Path(__file__).resolve().parent.parent
 DEMO_DIR = ROOT / "demo"
@@ -52,36 +85,31 @@ MUTED = "#7D8590"
 
 # -----------------------------------------------------------------------------
 # Narration script. First-person from Danielle's POV. Confident, no hedging.
-# Pure ASCII so SAPI never mispronounces.
+# Trimmed to fit a ~1100-char ElevenLabs budget on a free-tier monthly quota.
 # -----------------------------------------------------------------------------
 NARRATION: List[str] = [
-    # 1 - title
+    # 1 - title (~64 chars)
     "FlagOS Track 1. Twenty Triton GPU operators, by Danielle Lesin.",
-    # 2 - tiers
-    "I implemented all twenty operators across three difficulty tiers. "
-    "Eight easy pointwise operators. "
-    "Eight medium-complexity normalization, reduction and matmul kernels. "
-    "And four hard operators, including flash attention and rotary embeddings.",
-    # 3 - kernel
-    "Here is my log10 kernel. "
-    "I use Triton autotuning across block sizes, warps and stages, "
-    "and promote inputs to float thirty-two for numerical stability.",
-    # 4 - tests
+    # 2 - tiers (~205 chars)
+    "I implemented all twenty operators across three tiers. "
+    "Eight easy pointwise ops, eight medium normalization, reduction and matmul kernels, "
+    "and four hard ops including flash attention and rotary embeddings.",
+    # 3 - kernel (~135 chars)
+    "Here is my log ten kernel. I use Triton autotuning across block sizes, warps and stages, "
+    "and promote to float thirty-two for stability.",
+    # 4 - tests (~190 chars)
     "All one hundred twenty-eight correctness tests pass. "
-    "I cover four data types, edge values including NaN and infinity, "
-    "shape sweeps up to four-thousand by four-thousand, "
-    "and both the out and in-place API paths.",
-    # 5 - cli
-    "I shipped a clean command-line tool with list, test, bench, "
-    "package and info subcommands.",
-    # 6 - dimensions
-    "My implementation maps cleanly to all six FlagGems scoring dimensions: "
-    "correctness, performance, open-source adaptability, "
-    "cross-platform compatibility, test coverage, and code readability.",
-    # 7 - benchmark
+    "I cover four dtypes, edge values like NaN and infinity, "
+    "shape sweeps up to four thousand square, and both out and in-place paths.",
+    # 5 - cli (~78 chars)
+    "I shipped a clean CLI with list, test, bench, package and info subcommands.",
+    # 6 - dimensions (~155 chars)
+    "My implementation hits all six FlagGems scoring dimensions: "
+    "correctness, performance, adaptability, cross-platform, test coverage and readability.",
+    # 7 - benchmark (~122 chars)
     "My Triton kernels are consistently faster than the PyTorch reference, "
-    "across softmax, layer norm, RMS norm, log10 and gelu.",
-    # 8 - closing
+    "across softmax, layer norm, RMS norm, log ten and gelu.",
+    # 8 - closing (~85 chars)
     "Thank you for reviewing my submission. "
     "The full code is on GitHub at flagos dash track one.",
 ]
@@ -346,32 +374,105 @@ def slide_closing():
 
 
 # -----------------------------------------------------------------------------
-# Narration via Windows SAPI (PowerShell shells out to System.Speech)
+# Narration backends
 # -----------------------------------------------------------------------------
-def render_audio(idx: int, text: str) -> Path:
-    out = AUDIO_DIR / f"slide_{idx:02d}.wav"
-    # Escape single quotes for PowerShell heredoc
-    text_escaped = text.replace("'", "''")
-    ps_script = (
-        "Add-Type -AssemblyName System.Speech;"
-        "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer;"
-        "try { $s.SelectVoice('Microsoft Zira Desktop') } catch {};"
-        "$s.Rate = -1;"
-        "$s.Volume = 100;"
-        f"$s.SetOutputToWaveFile('{out.resolve().as_posix()}');"
-        f"$s.Speak('{text_escaped}');"
-        "$s.Dispose();"
+def _render_audio_elevenlabs(idx: int, text: str) -> Path:
+    out = AUDIO_DIR / f"slide_{idx:02d}.mp3"
+    url = (
+        f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVEN_VOICE}"
+        "?output_format=mp3_44100_128"
     )
-    subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_script],
-        check=True,
+    body = json.dumps({
+        "text": text,
+        "model_id": ELEVEN_MODEL,
+        "voice_settings": {
+            "stability": 0.45,
+            "similarity_boost": 0.80,
+            "style": 0.0,
+            "use_speaker_boost": True,
+        },
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        url=url,
+        method="POST",
+        headers={
+            "xi-api-key": ELEVEN_KEY,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        },
+        data=body,
     )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            out.write_bytes(resp.read())
+    except urllib.error.HTTPError as e:
+        msg = e.read().decode("utf-8", "replace")[:400]
+        raise RuntimeError(f"ElevenLabs HTTP {e.code} on slide {idx}: {msg}") from e
     return out
 
 
-def wav_duration_seconds(path: Path) -> float:
-    with wave.open(str(path), "rb") as w:
-        return w.getnframes() / float(w.getframerate())
+def _render_audio_edge(idx: int, text: str) -> Path:
+    """Use edge-tts (Microsoft Azure Neural voices, no key required)."""
+    import edge_tts  # imported lazily so users without it can still pick ElevenLabs
+    out = AUDIO_DIR / f"slide_{idx:02d}.mp3"
+
+    async def _go() -> None:
+        comm = edge_tts.Communicate(
+            text, voice=EDGE_VOICE, rate=EDGE_RATE, pitch=EDGE_PITCH,
+        )
+        await comm.save(str(out))
+
+    asyncio.run(_go())
+    return out
+
+
+def _select_backend() -> str:
+    """Decide which TTS backend to use this run."""
+    if TTS_BACKEND in ("edge", "edge-tts"):
+        return "edge"
+    if TTS_BACKEND == "elevenlabs":
+        return "elevenlabs"
+    # auto: try ElevenLabs only if a key is present AND the account has quota left.
+    if ELEVEN_KEY:
+        try:
+            req = urllib.request.Request(
+                "https://api.elevenlabs.io/v1/user/subscription",
+                headers={"xi-api-key": ELEVEN_KEY, "Accept": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=15) as r:
+                info = json.loads(r.read().decode("utf-8"))
+            used = int(info.get("character_count", 0))
+            limit = int(info.get("character_limit", 0))
+            remaining = max(0, limit - used)
+            need = sum(len(t) for t in NARRATION) * 2  # rough headroom
+            if remaining >= need:
+                return "elevenlabs"
+            print(f"[tts] ElevenLabs has only {remaining} chars left, need ~{need}; "
+                  "falling back to edge-tts.")
+        except Exception as e:  # noqa: BLE001
+            print(f"[tts] ElevenLabs preflight failed ({e}); falling back to edge-tts.")
+    return "edge"
+
+
+_SELECTED_BACKEND = "edge"  # overwritten in main() after _select_backend()
+
+
+def render_audio(idx: int, text: str) -> Path:
+    if _SELECTED_BACKEND == "elevenlabs":
+        return _render_audio_elevenlabs(idx, text)
+    return _render_audio_edge(idx, text)
+
+
+def audio_duration_seconds(path: Path) -> float:
+    """Use ffprobe so we don't need any audio-decoding Python lib."""
+    out = subprocess.run(
+        ["ffprobe", "-v", "error",
+         "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1",
+         str(path)],
+        check=True, capture_output=True, text=True,
+    )
+    return float(out.stdout.strip())
 
 
 # -----------------------------------------------------------------------------
@@ -395,17 +496,23 @@ def main() -> None:
         frames.append(p)
     assert len(frames) == len(NARRATION)
 
-    # 2. Render audio + measure durations
+    # 2. Render audio + measure durations with ffprobe
+    total_chars = sum(len(t) for t in NARRATION)
+    if _SELECTED_BACKEND == "elevenlabs":
+        print(f"\nTTS: ElevenLabs  voice={ELEVEN_VOICE}  model={ELEVEN_MODEL}  "
+              f"chars={total_chars}")
+    else:
+        print(f"\nTTS: edge-tts  voice={EDGE_VOICE}  rate={EDGE_RATE}  "
+              f"chars={total_chars}")
     durations: List[float] = []
     audios: List[Path] = []
     for i, text in enumerate(NARRATION, 1):
-        wav = render_audio(i, text)
-        # Pad each slide with 0.6 s tail so narration doesn't bleed into next.
-        d = wav_duration_seconds(wav) + 0.6
+        mp3 = render_audio(i, text)
+        d = audio_duration_seconds(mp3) + 0.5  # tail so clips don't bleed
         d = max(d, 4.0)  # 4 s floor for very short narrations
         durations.append(d)
-        audios.append(wav)
-        print(f"  audio  slide_{i:02d}.wav  {d:5.2f}s  '{text[:50]}...'")
+        audios.append(mp3)
+        print(f"  audio  slide_{i:02d}.mp3  {d:5.2f}s  '{text[:55]}...'")
 
     total = sum(durations)
     print(f"\nTotal duration: {total:.1f}s")
@@ -432,16 +539,16 @@ def main() -> None:
         check=True,
     )
 
-    # 4. Build audio stream by padding each WAV to its slide duration with silence
+    # 4. Build audio stream by padding each MP3 to its slide duration with silence
     concat_a = DEMO_DIR / "concat_audio.txt"
     audio_padded: List[Path] = []
-    for i, (wav, dur) in enumerate(zip(audios, durations), 1):
+    for i, (mp3, dur) in enumerate(zip(audios, durations), 1):
         padded = AUDIO_DIR / f"padded_{i:02d}.wav"
         subprocess.run(
             ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-             "-i", str(wav),
+             "-i", str(mp3),
              "-af", f"apad=whole_dur={dur:.3f}",
-             "-c:a", "pcm_s16le", "-ar", "44100", "-ac", "1",
+             "-c:a", "pcm_s16le", "-ar", "44100", "-ac", "2",
              str(padded)],
             check=True,
         )
@@ -488,4 +595,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    _SELECTED_BACKEND = _select_backend()  # noqa: F811  (module-level rebind)
     main()
