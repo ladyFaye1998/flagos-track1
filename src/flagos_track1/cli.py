@@ -34,16 +34,15 @@ def main() -> None:
 @main.command("list")
 @click.option("--tier", type=click.Choice(["easy", "medium", "hard", "all"]), default="all")
 def list_cmd(tier: str) -> None:
-    """List all registered operators and their prize values."""
+    """List all registered operators grouped by tier."""
     tier_filter = None if tier == "all" else tier
     entries = list_ops(tier_filter)
-    total = sum(e.prize_rmb for e in entries)
-    click.echo(f"{'Op':<22}  {'Tier':<8}  {'Prize (RMB)':>12}")
-    click.echo("-" * 48)
+    click.echo(f"{'Op':<22}  {'Tier':<8}")
+    click.echo("-" * 34)
     for e in entries:
-        click.echo(f"{e.name:<22}  {e.tier:<8}  {e.prize_rmb:>12}")
-    click.echo("-" * 48)
-    click.echo(f"{len(entries)} operators, max prize = {total} RMB")
+        click.echo(f"{e.name:<22}  {e.tier:<8}")
+    click.echo("-" * 34)
+    click.echo(f"{len(entries)} operators")
 
 
 # ------------------------- TEST --------------------------------------------

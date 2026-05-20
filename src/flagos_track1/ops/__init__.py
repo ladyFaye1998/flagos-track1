@@ -26,10 +26,6 @@ class OpEntry:
     op: Callable
     reference: Callable
 
-    @property
-    def prize_rmb(self) -> int:
-        return {"easy": 1000, "medium": 2000, "hard": 3000}[self.tier]
-
 
 def _e(name: str, op: Callable, reference: Callable) -> OpEntry:
     return OpEntry(name=name, tier="easy", op=op, reference=reference)

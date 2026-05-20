@@ -17,7 +17,6 @@ Implements **20 Triton operators** (8 Easy + 8 Medium + 4 Hard), each with:
 - a CPU/CUDA fallback so tests + the CLI run anywhere
 - correctness + benchmark coverage via `pytest` and a `flagos` CLI
 
-
 ---
 
 ## Repository layout
@@ -55,7 +54,7 @@ On Windows, use `pip install triton-windows` instead of `triton`.
 
 ```bash
 flagos info                  # show torch / triton / cuda versions
-flagos list                  # list all 20 ops + per-tier prize
+flagos list                  # list all 20 ops grouped by tier
 flagos test --tier easy      # run pytest for one tier
 flagos test --op softmax     # run pytest for a single op
 flagos bench --tier hard     # micro-benchmark vs PyTorch reference
@@ -70,28 +69,28 @@ python scripts\flagos_cli.py list
 
 ## The 20 operators
 
-| Tier | Op | Prize | Notes |
-|---|---|---|---|
-| Easy | abs | 1k RMB | autotuned 1-D pointwise |
-| Easy | exp | 1k | fp32 internal |
-| Easy | log | 1k | fp32 internal |
-| Easy | sigmoid | 1k | fp32 internal |
-| Easy | relu | 1k | `tl.maximum` |
-| Easy | tanh | 1k | derived from `exp` |
-| Easy | gelu | 1k | exact + tanh-approx kernels |
-| Easy | silu | 1k | x * sigmoid(x) |
-| Medium | softmax | 2k | online softmax, last-dim |
-| Medium | layer_norm | 2k | forward, optional weight + bias |
-| Medium | rms_norm | 2k | Llama-style RMSNorm |
-| Medium | cross_entropy | 2k | fused log-softmax + NLL, ignore_index |
-| Medium | embedding | 2k | gather + padding_idx |
-| Medium | dropout | 2k | Triton Philox-based, scale-aware |
-| Medium | argmax | 2k | tile-reduction last dim |
-| Medium | matmul | 2k | blocked GEMM with autotune |
-| Hard | flash_attention | 3k | FA-v2 forward, causal, D ∈ {16, 32, 64, 128} |
-| Hard | rope | 3k | interleaved RoPE |
-| Hard | fused_moe_topk | 3k | router softmax + top-k + renorm |
-| Hard | rms_norm_backward | 3k | analytic grad_x + atomic grad_w |
+| Tier | Op | Notes |
+|---|---|---|
+| Easy | abs | autotuned 1-D pointwise |
+| Easy | exp | fp32 internal |
+| Easy | log | fp32 internal |
+| Easy | sigmoid | fp32 internal |
+| Easy | relu | `tl.maximum` |
+| Easy | tanh | derived from `exp` |
+| Easy | gelu | exact + tanh-approx kernels |
+| Easy | silu | x * sigmoid(x) |
+| Medium | softmax | online softmax, last-dim |
+| Medium | layer_norm | forward, optional weight + bias |
+| Medium | rms_norm | Llama-style RMSNorm |
+| Medium | cross_entropy | fused log-softmax + NLL, ignore_index |
+| Medium | embedding | gather + padding_idx |
+| Medium | dropout | Triton Philox-based, scale-aware |
+| Medium | argmax | tile-reduction last dim |
+| Medium | matmul | blocked GEMM with autotune |
+| Hard | flash_attention | FA-v2 forward, causal, D ∈ {16, 32, 64, 128} |
+| Hard | rope | interleaved RoPE |
+| Hard | fused_moe_topk | router softmax + top-k + renorm |
+| Hard | rms_norm_backward | analytic grad_x + atomic grad_w |
 
 ## Scoring dimensions covered
 

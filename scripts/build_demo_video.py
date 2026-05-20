@@ -171,16 +171,16 @@ def slide_tiers():
     tiers = [
         ("EASY  -  8 pointwise ops",
          "abs   exp   log   sigmoid   relu   tanh   gelu   silu",
-         "1000 RMB / topic", ACCENT2, 70),
+         "element-wise + autotune", ACCENT2, 70),
         ("MEDIUM  -  8 ops",
          "softmax   layer_norm   rms_norm   cross_entropy\n"
          "embedding   dropout   argmax   matmul",
-         "2000 RMB / topic", ACCENT3, 47),
+         "normalization + GEMM", ACCENT3, 47),
         ("HARD  -  4 ops",
          "flash_attention   rope   fused_moe_topk   rms_norm_backward",
-         "3000 RMB / topic", ACCENT4, 22),
+         "attention + backward", ACCENT4, 22),
     ]
-    for label, ops, prize, color, y in tiers:
+    for label, ops, tagline, color, y in tiers:
         rect = patches.FancyBboxPatch(
             (6, y - 7), 88, 14, boxstyle="round,pad=0.6",
             linewidth=2, edgecolor=color, facecolor=PANEL,
@@ -190,8 +190,8 @@ def slide_tiers():
                 fontsize=20, color=color, weight="bold")
         ax.text(9, y - 2, ops, ha="left", va="center",
                 fontsize=15, color=FG, family="monospace")
-        ax.text(91, y + 4, prize, ha="right", va="center",
-                fontsize=18, color=MUTED, weight="bold")
+        ax.text(91, y + 4, tagline, ha="right", va="center",
+                fontsize=16, color=MUTED, style="italic")
     footer(ax)
     return save(fig, 2)
 
@@ -268,25 +268,25 @@ def slide_cli():
     out = textwrap.dedent("""\
         $ flagos list
 
-        Op                      Tier       Prize (RMB)
-        ------------------------------------------------
-        abs                     easy              1000
-        exp                     easy              1000
-        log                     easy              1000
-        sigmoid                 easy              1000
-        relu                    easy              1000
-        ...                                       ...
-        softmax                 medium            2000
-        layer_norm              medium            2000
-        rms_norm                medium            2000
-        ...                                       ...
-        flash_attention         hard              3000
-        rope                    hard              3000
-        fused_moe_topk          hard              3000
-        rms_norm_backward       hard              3000
-        ------------------------------------------------
-        20 operators, max prize = 36000 RMB""")
-    ax.text(20, 47, out, ha="left", va="center", fontsize=15,
+        Op                      Tier
+        ----------------------------------
+        abs                     easy
+        exp                     easy
+        log                     easy
+        sigmoid                 easy
+        relu                    easy
+        ...
+        softmax                 medium
+        layer_norm              medium
+        rms_norm                medium
+        ...
+        flash_attention         hard
+        rope                    hard
+        fused_moe_topk          hard
+        rms_norm_backward       hard
+        ----------------------------------
+        20 operators""")
+    ax.text(25, 47, out, ha="left", va="center", fontsize=15,
             color=FG, family="monospace",
             bbox=dict(boxstyle="round,pad=1.2", facecolor=PANEL,
                       edgecolor=ACCENT, linewidth=2))
