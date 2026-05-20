@@ -91,11 +91,14 @@ for i, (label, count, color) in enumerate(tiers):
     ax.text(x0 + BADGE_W / 2, BADGE_Y + BADGE_H * 0.30, count,
             ha="center", va="center", fontsize=11, color=FG)
 
-# Footer: repo URL + author
-ax.text(LX, 18, "github.com/ladyFaye1998/flagos-track1",
+# Footer: repo URL + author + upstream contribution
+ax.text(LX, 22, "github.com/ladyFaye1998/flagos-track1",
         ha="left", va="center", fontsize=17, color=ACCENT,
         family="monospace", weight="bold")
-ax.text(LX, 12, "by Danielle Lesin  -  Apache-2.0",
+ax.text(LX, 16, "upstream: FlagOpen/FlagGems PR #3400  perf(log10)",
+        ha="left", va="center", fontsize=11, color=ACCENT2,
+        family="monospace")
+ax.text(LX, 11, "by Danielle Lesin  -  Apache-2.0",
         ha="left", va="center", fontsize=12, color=MUTED)
 
 # ----- Right column: 2x2 stat card grid -----

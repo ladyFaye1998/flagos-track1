@@ -11,6 +11,11 @@ reference path, dtype-aware correctness tests, and a benchmark suite.
 **Project site:** https://ladyfaye1998.github.io/flagos-track1/ — embedded
 demo video, benchmark table, backend matrix, links to the per-op notes.
 
+**Upstream contribution:** [`FlagOpen/FlagGems#3400`](https://github.com/FlagOpen/FlagGems/pull/3400) —
+`perf(log10)` with an explicit `triton.autotune` sweep over
+`BLOCK_SIZE`/`num_warps`/`num_stages`, submitted to the FlagGems Operator
+Development Competition.
+
 ## Repository layout
 
 ```

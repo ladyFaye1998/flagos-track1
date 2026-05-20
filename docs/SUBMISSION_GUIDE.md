@@ -72,7 +72,21 @@ All backward kernels are validated against `torch.autograd` in
 | Test Case Completeness | parametrised shape × dtype grids, edge-value batteries, forward + backward + CPU-parity coverage |
 | Code Readability | one op per file, full type hints, docstrings, per-op rationale in `docs/TECHNICAL_NOTES.md` |
 
-## 6. Submit
+## 6. Upstream contribution
+
+A focused performance PR for the existing `flag_gems.ops.log10`
+operator is open against the FlagGems repository under the
+"FlagGems Operator Development Competition" prefix:
+
+- [`FlagOpen/FlagGems#3400`](https://github.com/FlagOpen/FlagGems/pull/3400) —
+  `perf(log10): explicit autotune sweep`. Replaces the
+  `pointwise_dynamic` template with a hand-rolled `@libentry()`-decorated
+  Triton kernel that exposes an explicit `triton.autotune` sweep over
+  `BLOCK_SIZE`, `num_warps` and `num_stages`. All existing tests
+  (`tests/test_log10.py`) cover every public path (forward, in-place,
+  `out=`, special values, empty, non-contiguous, int promotion).
+
+## 7. Submit
 
 Per the official rules ([DoraHacks](https://dorahacks.io/hackathon/flagos-open-computing/detail)):
 

@@ -47,6 +47,7 @@ CELLS = [
 
 - **GitHub repository:** [{REPO_URL}]({REPO_URL})
 - **Project landing page:** [{PAGES_URL}]({PAGES_URL})
+- **Upstream FlagGems PR:** [`FlagOpen/FlagGems#3400`](https://github.com/FlagOpen/FlagGems/pull/3400) — `perf(log10)` with explicit `triton.autotune` sweep, submitted to the FlagGems Operator Development Competition
 - **License:** Apache-2.0
 
 This Kaggle notebook is the public, runnable companion to the GitHub
