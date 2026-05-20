@@ -88,29 +88,29 @@ MUTED = "#7D8590"
 # Trimmed to fit a ~1100-char ElevenLabs budget on a free-tier monthly quota.
 # -----------------------------------------------------------------------------
 NARRATION: List[str] = [
-    # 1 - title (~64 chars)
+    # 1 - title
     "FlagOS Track 1. Twenty Triton GPU operators, by Danielle Lesin.",
-    # 2 - tiers (~205 chars)
+    # 2 - tiers
     "I implemented all twenty operators across three tiers. "
     "Eight easy pointwise ops, eight medium normalization, reduction and matmul kernels, "
     "and four hard ops including flash attention and rotary embeddings.",
-    # 3 - kernel (~135 chars)
+    # 3 - kernel
     "Here is my log ten kernel. I use Triton autotuning across block sizes, warps and stages, "
     "and promote to float thirty-two for stability.",
-    # 4 - tests (~190 chars)
-    "All one hundred twenty-eight correctness tests pass. "
-    "I cover four dtypes, edge values like NaN and infinity, "
-    "shape sweeps up to four thousand square, and both out and in-place paths.",
-    # 5 - cli (~78 chars)
+    # 4 - tests
+    "All one hundred seventy-eight correctness tests pass. "
+    "I cover three dtypes, edge values, shape sweeps, "
+    "backward kernels validated against autograd, and a CPU parity suite that runs in CI.",
+    # 5 - cli
     "I shipped a clean CLI with list, test, bench, package and info subcommands.",
-    # 6 - dimensions (~155 chars)
+    # 6 - dimensions
     "My implementation hits all six FlagGems scoring dimensions: "
     "correctness, performance, adaptability, cross-platform, test coverage and readability.",
-    # 7 - benchmark (~150 chars)
+    # 7 - benchmark
     "Every medium and hard kernel is faster than PyTorch. "
-    "Flash attention is ten times faster. RMS norm seven times. "
-    "Layer norm and matmul both beat torch's fused kernels.",
-    # 8 - closing (~85 chars)
+    "Flash attention is roughly ten times faster. RMS norm over seven times. "
+    "Even matmul wins, because the wrapper dispatches between Triton and cuBLAS per shape.",
+    # 8 - closing
     "Thank you for reviewing my submission. "
     "The full code is on GitHub at flagos dash track one.",
 ]
@@ -231,32 +231,34 @@ def slide_kernel():
 
 def slide_tests():
     fig, ax = new_fig()
-    ax.text(50, 92, "128 / 128 correctness tests pass",
+    ax.text(50, 92, "178 / 178 correctness tests pass",
             ha="center", va="center", fontsize=30, color=FG, weight="bold")
     out = textwrap.dedent("""\
-        $ FLAGOS_FORCE_CPU=1 python -m pytest tests/ -q
+        $ python -m pytest tests/ -q
 
-        tests/easy/test_easy.py     ........................................  [ 64%]
-        tests/easy/test_easy.py     ..........................................  [100%]
-        tests/medium/test_medium.py ....................................  [100%]
-        tests/hard/test_hard.py     ..........  [100%]
+        tests/backward/test_backward.py ............................. [ 16%]
+        tests/easy/test_easy.py         .........................................  [ 62%]
+        tests/medium/test_medium.py     ....................................  [ 82%]
+        tests/hard/test_hard.py         ..........  [ 88%]
+        tests/test_cpu_fallback.py      .....................  [100%]
 
-        ============================== 128 passed in 122s ==============================""")
+        ============================== 178 passed in 38s ===============================""")
     ax.text(11, 60, out, ha="left", va="center", fontsize=15,
             color=FG, family="monospace",
             bbox=dict(boxstyle="round,pad=1.2", facecolor=PANEL,
                       edgecolor=ACCENT2, linewidth=2))
     items = [
-        ("4 dtypes",      "fp16 / bf16 / fp32 / fp64"),
-        ("Edge battery",  "NaN  Inf  -Inf  0.0  -0.0  denormals"),
-        ("Shape sweep",   "1x1  to  4096x4096  contiguous + strided"),
-        ("API parity",    "out=  /  in-place  /  int promotion"),
+        ("3 dtypes",      "fp16  /  bf16  /  fp32"),
+        ("Edge battery",  "NaN  /  Inf  /  -Inf  /  0.0  /  -0.0"),
+        ("Shape sweep",   "(7,)  ->  (4096, 4096)"),
+        ("Backward",      "5 kernels validated vs torch.autograd"),
+        ("CPU parity",    "21 fallback cases, runs in CI"),
     ]
     for i, (k, v) in enumerate(items):
-        y = 30 - i * 5
+        y = 32 - i * 5
         ax.text(15, y, k, ha="left", va="center", fontsize=16,
                 color=ACCENT2, weight="bold")
-        ax.text(35, y, v, ha="left", va="center", fontsize=16,
+        ax.text(33, y, v, ha="left", va="center", fontsize=16,
                 color=FG, family="monospace")
     footer(ax)
     return save(fig, 4)
@@ -301,17 +303,17 @@ def slide_dimensions():
             ha="center", va="center", fontsize=28, color=FG, weight="bold")
     rows = [
         ("Functional Correctness",
-         "dtype-aware tolerances, 4 dtypes, edge values, shape sweep"),
+         "178 tests, dtype-aware tolerances, backward vs torch.autograd"),
         ("Performance Competitiveness",
-         "Triton autotune, fp32 internal accum, masked tiled GEMM"),
+         "every medium + hard kernel beats torch, matmul wrapper auto-dispatches"),
         ("Open-Source Adaptability",
-         "Apache-2.0, pyproject.toml, FlagGems pointwise_dynamic style"),
+         "Apache-2.0, pyproject.toml, FlagGems-style layout"),
         ("Cross-Platform Compatibility",
-         "PyTorch fallback so the package imports on any platform"),
+         "device_caps + per-vendor configs, CPU parity in CI, see BACKENDS.md"),
         ("Test Case Completeness",
-         "128 parametrised tests + out= / in-place paths"),
+         "shape x dtype grids, edge values, forward + backward + CPU paths"),
         ("Code Readability",
-         "one op per module, type hints, no dead branches"),
+         "one op per module, type hints, per-op rationale in TECHNICAL_NOTES.md"),
     ]
     for i, (k, v) in enumerate(rows):
         y = 76 - i * 10
@@ -337,18 +339,19 @@ def slide_bench():
 
         Operator              Mine (ms)    Torch (ms)   Speedup
         --------------------------------------------------------
-        flash_attention           0.171         1.791    10.48x
-        rms_norm                  0.214         1.572     7.35x
-        rope                      0.010         0.051     4.89x
-        rms_norm_backward         1.002         4.737     4.73x
-        dropout                   0.355         1.449     4.09x
-        cross_entropy             0.933         2.840     3.05x
-        embedding                 0.241         0.612     2.54x
-        softmax                   0.213         0.478     2.25x
-        matmul                    0.117         0.212     1.81x
-        layer_norm                0.237         0.334     1.41x
-        argmax                    0.114         0.133     1.17x
-        easy / pointwise          0.21-0.25     0.21-0.27 parity""")
+        flash_attention           0.176         1.702     9.68x
+        rms_norm                  0.220         1.581     7.17x
+        rope                      0.013         0.047     3.80x
+        dropout                   0.346         1.333     3.85x
+        rms_norm_backward         1.405         5.008     3.57x
+        embedding                 0.224         0.616     2.75x
+        cross_entropy             1.308         3.283     2.51x
+        softmax                   0.224         0.409     1.83x
+        argmax                    0.123         0.177     1.44x
+        layer_norm                0.221         0.325     1.47x
+        matmul                    0.189         0.265     1.40x
+        fused_moe_topk            0.979         1.432     1.46x
+        easy / pointwise          parity to 1.76x  (bandwidth-bound)""")
     ax.text(9, 47, out, ha="left", va="center", fontsize=13,
             color=FG, family="monospace",
             bbox=dict(boxstyle="round,pad=1.0", facecolor=PANEL,
